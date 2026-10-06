@@ -794,9 +794,37 @@ extern "C" void kmain() {
     if (disk >= 0) storage_init((const void*)(uintptr_t)mods[disk].start, mods[disk].end - mods[disk].start);
     else storage_init(nullptr, 0);
     boot_mark(10);                                      // disk
-    if (!storage_ready())
-        halt_screen("NO DOOM DISK",
-                    "The boot loader didn't hand over a FAT32 disk image (doom.img) with the WAD on it.");
+    if (!storage_ready()) {
+        // Say exactly what arrived, so a screenshot is enough to tell why.
+        static char why[600];
+        size_t w = 0;
+        auto add = [&](const char* f, auto... a) {
+            if (w < sizeof why) w += snprintf(why + w, sizeof why - w, f, a...);
+        };
+        if (!(info.flags & (1 << 3)))
+            add("The boot loader passed no modules at all (Multiboot flags %X).", info.flags);
+        else if (!nmods)
+            add("The boot loader passed 0 modules: GRUB's \"module\" line failed (wrong path, or not enough memory?).");
+        else {
+            add("%d module(s):", nmods);
+            for (int i = 0; i < nmods; i++)
+                add(" [%s] %lu bytes at %lX;", mods[i].name[0] ? mods[i].name : "no name",
+                    (unsigned long)(mods[i].end - mods[i].start), (unsigned long)mods[i].start);
+            if (disk >= 0) {
+                const uint8_t* b = (const uint8_t*)(uintptr_t)mods[disk].start;
+                uint64_t sz = mods[disk].end - mods[disk].start;
+                if (sz < 512) add(" Too small to be a disk image.");
+                else if (b[0] == 0x1F && b[1] == 0x8B) add(" It's still gzip-compressed: the boot loader didn't unpack it.");
+                else {
+                    add(" Boot sector: signature %02X%02X, %u bytes/sector, FAT16 size %u, FAT32 size %u, type \"%.8s\".",
+                        b[510], b[511], b[11] | b[12] << 8, b[22] | b[23] << 8,
+                        (unsigned)(b[36] | b[37] << 8 | b[38] << 16 | (uint32_t)b[39] << 24), (const char*)b + 82);
+                }
+            }
+        }
+        printf("%s\n", why);
+        halt_screen("NO DOOM DISK", why);
+    }
     bool wad = false;
     fat_list("/", any_wad, &wad);
     if (!wad) halt_screen("NO WAD FILE", "doom.img has no .wad file in its root directory. Put doom1.wad, doom.wad or doom2.wad there.");
