@@ -30,7 +30,12 @@
 ARCH     ?= x86_64
 CC       ?= gcc
 CXX      ?= g++
-DOOM     := ../doomgeneric
+# The doomgeneric sources: this directory sits next to them in the
+# baremetaldoom repository. DOOM=/path/to/doomgeneric if it doesn't.
+DOOM     ?= ../doomgeneric
+ifeq ($(wildcard $(DOOM)/doomgeneric.h),)
+$(error Doom's source isn't at $(DOOM). Put this directory in the baremetaldoom repository (next to doomgeneric/), or give its path: make DOOM=/path/to/baremetaldoom/doomgeneric)
+endif
 BUILD    ?= build/$(ARCH)
 
 GRUB_MKRESCUE ?= $(shell command -v grub2-mkrescue || command -v grub-mkrescue)
@@ -75,7 +80,7 @@ GFXMODE  := 640x480x8,640x400x8,800x600x8,640x480x16,640x480x32,auto
 IMG_SPARE_MB ?= 2
 IMG_MIN_MB   ?= 1
 FBDEFS   := -DFB_W=640 -DFB_H=480 -DFB_BPP=8
-ARCHFLAGS := -fno-pic -fno-pie -march=i386 -mtune=i486 -mfpmath=387 -mno-sse
+ARCHFLAGS := -fno-pic -fno-pie -march=i386 -mtune=i486 -mfpmath=387 -mno-sse -fcf-protection=none
 else
 $(error ARCH must be x86_64 or i386)
 endif
