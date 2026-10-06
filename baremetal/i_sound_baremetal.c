@@ -23,9 +23,9 @@ typedef struct { const uint8_t* data; uint32_t len, rate; } sample_t;
 
 static boolean Init(boolean use_sfx_prefix)
 {
+    // On even with no card: one can be picked later in the Sound menu.
     use_prefix = use_sfx_prefix;
-    if (!mixer_enabled()) return false;
-    printf("I_InitSound: sound effects through the mixer\n");
+    printf("I_InitSound: sound effects through the mixer%s\n", mixer_enabled() ? "" : " (no card yet)");
     return true;
 }
 

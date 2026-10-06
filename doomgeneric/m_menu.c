@@ -57,6 +57,9 @@
 #include "sounds.h"
 
 #include "m_menu.h"
+#ifdef BAREMETAL
+#include "bm_audio.h"   // ../baremetal: the sound cards the kernel found
+#endif
 
 
 extern patch_t*		hu_font[HU_FONTSIZE];
@@ -187,6 +190,9 @@ void M_QuitDOOM(int choice);
 void M_ChangeMessages(int choice);
 void M_ChangeSensitivity(int choice);
 void M_SfxVol(int choice);
+#ifdef BAREMETAL
+void M_SoundCard(int choice);
+#endif
 void M_MusicVol(int choice);
 void M_ChangeDetail(int choice);
 void M_SizeDisplay(int choice);
@@ -417,6 +423,9 @@ enum
     sfx_empty1,
     music_vol,
     sfx_empty2,
+#ifdef BAREMETAL
+    sound_card,         // bare metal: which sound card (text, no graphic)
+#endif
     sound_end
 } sound_e;
 
@@ -425,7 +434,10 @@ menuitem_t SoundMenu[]=
     {2,"M_SFXVOL",M_SfxVol,'s'},
     {-1,"",0,'\0'},
     {2,"M_MUSVOL",M_MusicVol,'m'},
-    {-1,"",0,'\0'}
+    {-1,"",0,'\0'},
+#ifdef BAREMETAL
+    {2,"",M_SoundCard,'c'},
+#endif
 };
 
 menu_t  SoundDef =
@@ -840,7 +852,29 @@ void M_DrawSound(void)
 
     M_DrawThermo(SoundDef.x,SoundDef.y+LINEHEIGHT*(music_vol+1),
 		 16,musicVolume);
+
+#ifdef BAREMETAL
+    {
+        // "CARD: <name>", cut to fit the screen; Left/Right/Enter change it.
+        char line[80];
+        int n = bm_audio_current();
+        M_snprintf(line, sizeof line, "CARD: %s", bm_audio_label(n));
+        while (strlen(line) > 6 && SoundDef.x + M_StringWidth(line) > SCREENWIDTH - 4)
+            line[strlen(line) - 1] = '\0';
+        M_WriteText(SoundDef.x, SoundDef.y + LINEHEIGHT * sound_card + 3, line);
+    }
+#endif
 }
+
+#ifdef BAREMETAL
+void M_SoundCard(int choice)
+{
+    int count = bm_audio_count(), cur = bm_audio_current();
+    if (count <= 1) return;
+    cur = choice ? (cur + 1) % count : (cur + count - 1) % count;
+    bm_audio_select(cur);
+}
+#endif
 
 void M_Sound(int choice)
 {

@@ -11,7 +11,7 @@ struct Channel {
     volatile bool on;
 };
 static Channel ch_[MIXER_CHANNELS];
-static bool enabled;
+static volatile bool enabled;
 
 // The main loop changes channels; the interrupt reads them.
 static inline uintptr_t irq_off() {

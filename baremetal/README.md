@@ -28,6 +28,8 @@ menuentry "Doom" {
 
 **Hardware:** keyboard and mouse (PS/2 or USB/xHCI), any VESA/GOP framebuffer, sound effects on HD Audio, AC'97 or Sound Blaster. No music. Secure Boot needs `make sign`.
 
+**Sound card:** F4 (Options → Sound Volume), then the CARD line: Left/Right/Enter step through the cards found at boot, OFF included. The choice lasts until restart; `audio=` picks the one to start with.
+
 **Controls:** arrows move, Ctrl fires, Space opens doors, Alt strafes, Shift runs. Ctrl+Alt+Del restarts.
 
 **Boot options** (GRUB's `multiboot` line or `ARGS=`): `audio=hda|hdmi|analog|ac97|sb|off`, `sb=220,1`, `latency=MS`, `usb=off`. Anything else is passed to Doom (`-warp 1 1`, `-skill 4`, `-file x.wad`, `-mb 32`...). Boot messages go to COM1.

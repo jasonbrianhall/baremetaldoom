@@ -91,7 +91,7 @@ BASE     := $(MFLAG) $(ARCHFLAGS) $(FBDEFS) -O2 -fno-stack-protector -fno-asynch
 CXXFLAGS := $(BASE) -std=gnu++17 -fno-rtti -fno-threadsafe-statics -I. -I$(DOOM) -Wno-write-strings
 # Doom: 320x200, 8-bit (we scale and convert it), sound effects on. ctype
 # as functions (libc.cpp), not glibc's tables.
-DOOMDEFS := -DCMAP256 -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200 -DFEATURE_SOUND -DNORMALUNIX -DLINUX -D__NO_CTYPE
+DOOMDEFS := -DBAREMETAL -DCMAP256 -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200 -DFEATURE_SOUND -DNORMALUNIX -DLINUX -D__NO_CTYPE
 CFLAGS   := $(BASE) -std=gnu99 $(DOOMDEFS) -Ioverrides -I$(DOOM) -I. -w
 # Interrupt-time code (and what it calls) never touches SSE or x87
 # registers: the entry stubs save only the general-purpose ones.

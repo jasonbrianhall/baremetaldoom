@@ -19,6 +19,7 @@
 #include "mixer.hpp"
 #include "font.h"
 #include "bm.h"
+#include "bm_audio.h"
 #include "doomkeys.h"
 
 // ---------------------------------------------------------------- serial
@@ -551,6 +552,31 @@ void platform_sleep_ms(uint32_t ms) {
     do { bm_poll(); __asm__ volatile("hlt"); } while (platform_ms() - t0 < ms);
 }
 extern "C" void bm_sleep_ms(uint32_t ms) { platform_sleep_ms(ms); }
+
+// ---------------------------------------------------------------- sound card
+// The outputs audio.cpp found at boot (HD Audio jacks and monitors, AC'97,
+// Sound Blaster, and last the PC speaker, which for Doom means off), for
+// the Sound Volume menu. Switching stops the mixer first; it runs in the
+// timer interrupt, so once we're here it isn't in the middle of a batch.
+extern "C" int bm_audio_count(void) { return audio_output_count(); }
+extern "C" int bm_audio_current(void) { int c = audio_output_current(); return c < 0 ? 0 : c; }
+extern "C" const char* bm_audio_label(int i) {
+    static char buf[64];
+    const char* n = audio_output_name(i);
+    if (!strcmp(n, "PC speaker")) return "OFF";
+    strncpy(buf, n, sizeof buf - 1);
+    buf[sizeof buf - 1] = 0;
+    char* p = strstr(buf, " (");                       // drop the PCI address
+    if (p && strchr(p, ':')) *p = 0;
+    return buf;
+}
+extern "C" int bm_audio_select(int i) {
+    mixer_init(0);
+    bool ok = audio_select(i);
+    mixer_init(audio_name()[0] != 'n');                 // "none": the PC speaker (off)
+    printf("Sound: %s%s\n", audio_output_name(i), ok ? "" : " (couldn't start)");
+    return ok;
+}
 
 // ---------------------------------------------------------------- console
 // The kernel's and Doom's messages (printf, stdout, stderr) go to the serial
