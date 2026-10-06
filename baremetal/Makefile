@@ -108,16 +108,19 @@ DOOM_SRC := dummy am_map doomdef doomstat dstrings d_event d_items d_iwad d_loop
             m_random p_ceilng p_doors p_enemy p_floor p_inter p_lights p_map p_maputl p_mobj p_plats \
             p_pspr p_saveg p_setup p_sight p_spec p_switch p_telept p_tick p_user r_bsp r_data r_draw \
             r_main r_plane r_segs r_sky r_things sha1 sounds statdump st_lib st_stuff s_sound tables \
-            v_video wi_stuff w_checksum w_file w_main w_wad z_zone w_file_stdc i_input i_video doomgeneric
+            v_video wi_stuff w_checksum w_file w_main w_wad z_zone w_file_stdc i_input i_video doomgeneric \
+            mus2mid
 PORT_C   := doomgeneric_baremetal i_sound_baremetal
-PLATFORM := kernel libc runtime pci $(USB_OBJ) fat32 storage
+PLATFORM := kernel libc runtime pci $(USB_OBJ) fat32 storage music
+# The General MIDI synth on two OPL3s, from SBPRO (github.com/jasonbrianhall/sbpro2hda)
+OPL_OBJS := opl/opl opl/dbopl opl/gmsynth opl/gmtables
 IRQ_OBJS := irq mixer audio
 
 OBJS := $(BUILD)/boot.o $(BUILD)/setjmp.o \
-        $(addprefix $(BUILD)/,$(addsuffix .o,$(PLATFORM) $(IRQ_OBJS) $(PORT_C))) \
+        $(addprefix $(BUILD)/,$(addsuffix .o,$(PLATFORM) $(IRQ_OBJS) $(PORT_C) $(OPL_OBJS))) \
         $(addprefix $(BUILD)/doom/,$(addsuffix .o,$(DOOM_SRC)))
 
-HDRS := $(wildcard *.hpp) bm.h font.h
+HDRS := $(wildcard *.hpp) bm.h bm_audio.h music.h font.h $(wildcard opl/*.h)
 
 all: $(KERNEL)
 
@@ -134,11 +137,11 @@ $(addprefix $(BUILD)/,$(addsuffix .o,$(IRQ_OBJS))): $(BUILD)/%.o: %.cpp $(HDRS)
 	$(CXX) $(IRQFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: %.cpp $(HDRS)
-	@mkdir -p $(BUILD)
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: %.c $(HDRS)
-	@mkdir -p $(BUILD)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/doom/%.o: $(DOOM)/%.c $(wildcard $(DOOM)/*.h)

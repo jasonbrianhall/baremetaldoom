@@ -1,6 +1,8 @@
-// Doom's sound effects on bare metal: the WAD's DMX samples (8-bit unsigned,
-// 11025 Hz mostly) go to the interrupt-driven mixer (mixer.cpp) and on to
-// the sound card. No music: that would need an OPL (AdLib) synthesizer.
+// Doom's sound on bare metal. Effects: the WAD's DMX samples (8-bit
+// unsigned, 11025 Hz mostly) go to the interrupt-driven mixer (mixer.cpp).
+// Music: MUS lumps become MIDI (mus2mid) and play on SBPRO's General MIDI
+// synth over two emulated OPL3s (music.cpp). Both reach the sound card
+// from the timer interrupt.
 #include <string.h>
 #include <stdio.h>
 #include "doomtype.h"
@@ -8,6 +10,9 @@
 #include "w_wad.h"
 #include "z_zone.h"
 #include "mixer.hpp"
+#include "music.h"
+#include "memio.h"
+#include "mus2mid.h"
 
 int use_libsamplerate = 0;
 float libsamplerate_scale = 0.65f;
@@ -94,17 +99,41 @@ sound_module_t DG_sound_module = {
     StartSound, StopSound, SoundIsPlaying, CacheSounds,
 };
 
-// Music: none.
+// ---------------------------------------------------------------- music
+static int music_vol = 100;
+
 static boolean MusInit(void) { return true; }
-static void MusNone(void) {}
-static void MusVolume(int v) { (void)v; }
-static void* MusRegister(void* data, int len) { (void)data; (void)len; return NULL; }
-static void MusUnregister(void* h) { (void)h; }
-static void MusPlay(void* h, boolean loop) { (void)h; (void)loop; }
-static boolean MusPlaying(void) { return false; }
+static void MusShutdown(void) { music_stop(); }
+static void MusVolume(int v) { music_vol = v; music_volume(v); }
+static void MusPause(void) { music_pause(1); }
+static void MusResume(void) { music_pause(0); }
+
+// The lump as MIDI: as is if it already is, else through mus2mid.
+static void* MusRegister(void* data, int len)
+{
+    if (len > 4 && !memcmp(data, "MThd", 4))
+        return music_load(data, (uint32_t)len);
+    MEMFILE* in = mem_fopen_read(data, len);
+    MEMFILE* out = mem_fopen_write();
+    void* song = NULL;
+    if (!mus2mid(in, out)) {                    // false: converted
+        void* buf; size_t blen;
+        mem_get_buf(out, &buf, &blen);
+        song = music_load(buf, (uint32_t)blen);
+    } else {
+        printf("Music: not a MUS or MIDI lump\n");
+    }
+    mem_fclose(in);
+    mem_fclose(out);
+    return song;
+}
+static void MusUnregister(void* h) { music_free(h); }
+static void MusPlay(void* h, boolean loop) { music_volume(music_vol); music_play(h, loop); }
+static void MusStop(void) { music_stop(); }
+static boolean MusPlaying(void) { return music_playing() ? true : false; }
 
 music_module_t DG_music_module = {
     devices, sizeof devices / sizeof devices[0],
-    MusInit, MusNone, MusVolume, MusNone, MusNone,
-    MusRegister, MusUnregister, MusPlay, MusNone, MusPlaying, NULL,
+    MusInit, MusShutdown, MusVolume, MusPause, MusResume,
+    MusRegister, MusUnregister, MusPlay, MusStop, MusPlaying, NULL,
 };

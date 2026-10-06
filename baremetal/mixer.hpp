@@ -1,6 +1,6 @@
 #pragma once
-// Doom's sound effects, mixed in the timer interrupt (240 Hz) and handed
-// to the sound card (audio.cpp). Samples are 8-bit unsigned PCM at any rate
+// Doom's sound effects (and music, music.cpp), mixed in the timer interrupt
+// (240 Hz) and handed to the sound card (audio.cpp). Samples are 8-bit unsigned PCM at any rate
 // (the WAD's DMX lumps: 11025 Hz mostly), played mono. Integer only: it
 // runs inside an interrupt that saves only the general-purpose registers.
 #include <stdint.h>

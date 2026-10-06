@@ -17,6 +17,7 @@
 #include "storage.hpp"
 #include "fat32.hpp"
 #include "mixer.hpp"
+#include "music.h"
 #include "font.h"
 #include "bm.h"
 #include "bm_audio.h"
@@ -774,6 +775,7 @@ extern "C" void kmain() {
 
     AudioDriver drv = audio_init(cmdline);
     mixer_init(drv != AUDIO_NONE);
+    music_init();                                       // OPL3 tables (before the timer runs)
     boot_mark(6);                                       // sound
     printf("Sound: %s\n", drv != AUDIO_NONE ? audio_name() : "none (no sound card found)");
     usb_init(cmdline);

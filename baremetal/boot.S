@@ -192,7 +192,40 @@ efi_entry64:
     iretq
 .endm
 
-IRQ_STUB isr_timer,    irq_timer
+# The timer's handler mixes sound and runs the music synth (ordinary
+# compiled code that may use SSE/x87), so it also saves the FPU/SSE state.
+# Interrupt gates keep IF clear, so one save area is enough.
+.global isr_timer
+isr_timer:
+    push %rax
+    push %rcx
+    push %rdx
+    push %rsi
+    push %rdi
+    push %r8
+    push %r9
+    push %r10
+    push %r11
+    cld
+    fxsave timer_fx(%rip)
+    call irq_timer
+    fxrstor timer_fx(%rip)
+    pop  %r11
+    pop  %r10
+    pop  %r9
+    pop  %r8
+    pop  %rdi
+    pop  %rsi
+    pop  %rdx
+    pop  %rcx
+    pop  %rax
+    iretq
+
+.section .bss
+.align 16
+timer_fx: .skip 512
+.section .text
+
 IRQ_STUB isr_keyboard, irq_keyboard
 IRQ_STUB isr_mouse,    irq_mouse
 IRQ_STUB isr_spurious, irq_spurious

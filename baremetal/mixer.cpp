@@ -1,6 +1,7 @@
 // Sound-effect mixer. See mixer.hpp. Built with -mgeneral-regs-only.
 #include "mixer.hpp"
 #include "audio.hpp"
+#include "music.h"
 
 struct Channel {
     const uint8_t* data;
@@ -64,9 +65,15 @@ void mixer_tick(void) {
             k.pos += k.step;
         }
     }
+    music_render(acc, n);                     // Doom's music (OPL3 General MIDI)
+    // Soft limiter (as SBPRO's): linear to 3/4 of full scale, then 4:1, so
+    // loud moments (music and effects together) squash instead of crackle.
     for (int i = 0; i < n; i++) {
         int32_t v = acc[i];
-        buf[i] = (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
+        const int32_t knee = 24576;
+        if (v > knee) { v = knee + (v - knee) / 4; if (v > 32767) v = 32767; }
+        else if (v < -knee) { v = -knee + (v + knee) / 4; if (v < -32768) v = -32768; }
+        buf[i] = (int16_t)v;
     }
     audio_submit(buf, n);
 }

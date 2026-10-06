@@ -114,7 +114,27 @@ _start:
     iret
 .endm
 
-IRQ_STUB isr_timer,    irq_timer
+# The timer's handler mixes sound and runs the music synth (ordinary
+# compiled code that may use the x87), so it also saves the FPU state.
+.global isr_timer
+isr_timer:
+    push %eax
+    push %ecx
+    push %edx
+    cld
+    fnsave timer_fpu
+    call irq_timer
+    frstor timer_fpu
+    pop  %edx
+    pop  %ecx
+    pop  %eax
+    iret
+
+.section .bss
+.align 16
+timer_fpu: .skip 108
+.section .text
+
 IRQ_STUB isr_keyboard, irq_keyboard
 IRQ_STUB isr_mouse,    irq_mouse
 IRQ_STUB isr_spurious, irq_spurious

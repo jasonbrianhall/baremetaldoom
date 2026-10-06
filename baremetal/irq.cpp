@@ -1,5 +1,6 @@
-// Interrupt handlers. Built with -mgeneral-regs-only so they never touch
-// SSE or x87 registers (the assembly stubs only save general-purpose ones).
+// Interrupt handlers. Built with -mgeneral-regs-only. The keyboard and
+// mouse stubs save only general-purpose registers; the timer's also saves
+// the FPU/SSE state, because the music synth it runs is ordinary code.
 #include <stdint.h>
 #include "hw.hpp"
 #include "mixer.hpp"
