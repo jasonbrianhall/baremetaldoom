@@ -242,11 +242,15 @@ QSOUND_sb   := -audiodev $(AUDIODEV),id=snd0,$(QAUDIO_OPTS) -device sb16,audiode
 QSOUND_none :=
 SOUND    ?= $(if $(filter i386,$(ARCH)),sb,hda)
 KVM      ?= $(if $(wildcard /dev/kvm),-enable-kvm,)
+# QEMU's GTK window stops redrawing while its Sound Blaster 16 plays (the
+# ISA DMA keeps its main loop busy); the SDL window doesn't. QDISPLAY= for
+# QEMU's default.
+QDISPLAY ?= $(if $(filter sb,$(SOUND)),-display sdl,)
 ifeq ($(ARCH),x86_64)
-QEMU     := qemu-system-x86_64 $(KVM) -m 512 -serial stdio $(QSOUND_$(SOUND))
+QEMU     := qemu-system-x86_64 $(KVM) -m 512 -serial stdio $(QDISPLAY) $(QSOUND_$(SOUND))
 else
 # The oldest CPU QEMU models is a 486.
-QEMU     := qemu-system-i386 -cpu 486 -m 24 -serial stdio $(QSOUND_$(SOUND))
+QEMU     := qemu-system-i386 -cpu 486 -m 24 -serial stdio $(QDISPLAY) $(QSOUND_$(SOUND))
 endif
 
 run: $(KERNEL) $(DISK)
