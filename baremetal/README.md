@@ -30,7 +30,7 @@ menuentry "Doom" {
 
 **Sound card:** F4 (Options → Sound Volume), then the CARD line: Left/Right/Enter step through the cards found at boot, OFF included. The choice lasts until restart; `audio=` picks the one to start with.
 
-**Controls:** arrows move, Ctrl fires, Space opens doors, Alt strafes, Shift runs. Ctrl+Alt+Del restarts. The mouse looks around Quake style (free look, with a crosshair and no autoaim); `mouse_freelook 0` in the config file brings back mouse-forward and autoaim, `mouse_invert 1` inverts it.
+**Controls:** WASD move and strafe (the arrows move and turn too), Ctrl fires, Space opens doors, Alt strafes, Shift runs. Keys are set in `default.cfg` (`key_up`, `key_strafeleft`, ... as DOS scan codes). Ctrl+Alt+Del restarts. The mouse looks around Quake style (free look, with a crosshair and no autoaim); `mouse_freelook 0` in the config file brings back mouse-forward and autoaim, `mouse_invert 1` inverts it.
 
 **Boot options** (GRUB's `multiboot` line or `ARGS=`): `audio=hda|hdmi|analog|ac97|sb|off`, `sb=220,1`, `latency=MS`, `usb=off`. Anything else is passed to Doom (`-warp 1 1`, `-skill 4`, `-file x.wad`, `-mb 32`...). Boot messages go to COM1.
 

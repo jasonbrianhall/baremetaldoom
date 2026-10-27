@@ -1622,7 +1622,6 @@ static const int scantokey[128] =
 
 static void SaveDefaultCollection(default_collection_t *collection)
 {
-#if ORIGCODE
     default_t *defaults;
     int i, v;
     FILE *f;
@@ -1722,7 +1721,6 @@ static void SaveDefaultCollection(default_collection_t *collection)
     }
 
     fclose (f);
-#endif
 }
 
 // Parses integer values in the configuration file
@@ -1784,7 +1782,6 @@ static void SetVariable(default_t *def, char *value)
 
 static void LoadDefaultCollection(default_collection_t *collection)
 {
-#if ORIGCODE
     FILE *f;
     default_t *def;
     char defname[80];
@@ -1842,7 +1839,6 @@ static void LoadDefaultCollection(default_collection_t *collection)
     }
 
     fclose (f);
-#endif
 }
 
 // Set the default filenames to use for configuration files.
@@ -2056,11 +2052,13 @@ float M_GetFloatVariable(char *name)
 
 static char *GetDefaultConfigDir(void)
 {
-    char *result = (char *)malloc(2);
-    result[0] = '.';
-    result[1] = '\0';
-
-    return result;
+#if defined(__DJGPP__) || defined(BAREMETAL)
+    // As DOS Doom: default.cfg and the saved games (doomsav0.dsg...) in
+    // the current directory. (DOS can't have names starting with a dot.)
+    return strdup("");
+#else
+    return strdup("./");
+#endif
 }
 
 // 

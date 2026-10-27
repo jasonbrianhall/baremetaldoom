@@ -403,12 +403,13 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
 	    cmd->angleturn += angleturn[tspeed]; 
     } 
  
-    if (gamekeydown[key_up]) 
+    // The arrows move too, whatever's bound (key_up defaults to W).
+    if (gamekeydown[key_up] || gamekeydown[KEY_UPARROW])
     {
 	// fprintf(stderr, "up\n");
 	forward += forwardmove[speed]; 
     }
-    if (gamekeydown[key_down]) 
+    if (gamekeydown[key_down] || gamekeydown[KEY_DOWNARROW]) 
     {
 	// fprintf(stderr, "down\n");
 	forward -= forwardmove[speed]; 
