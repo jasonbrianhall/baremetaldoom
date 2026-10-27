@@ -34,7 +34,6 @@
 
 #include "r_local.h"
 #include "r_sky.h"
-#include "p_local.h"     // P_FreeLook
 
 
 
@@ -700,7 +699,7 @@ static void R_DrawCrosshair (void)
     int		i;
     const byte	white = 4;      // PLAYPAL: 255,255,255
 
-    if (!P_FreeLook () || viewplayer->playerstate == PST_DEAD
+    if (!P_LookActive (viewplayer) || viewplayer->playerstate == PST_DEAD
      || cx < 4 || cy < 4)
 	return;
 

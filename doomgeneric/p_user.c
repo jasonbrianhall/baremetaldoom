@@ -27,6 +27,7 @@
 #include "p_local.h"
 
 #include "doomstat.h"
+#include "d_doomcom.h"    // D_NetFreeLook
 
 
 
@@ -225,12 +226,15 @@ void P_DeathThink (player_t* player)
 
 //
 // P_FreeLook
-// Free look and crosshair aiming are on: the config says so, and this
-// isn't a demo or a net game (the pitch isn't recorded or sent).
+// Whether the console player's new ticcmds ask for free look: the config
+// says so, this isn't a demo (they're vanilla), and in a net game every
+// other machine runs this port too (d_net.c). The game itself goes by each
+// ticcmd's LOOK_ACTIVE (P_LookActive), so all machines agree.
 //
 boolean P_FreeLook (void)
 {
-    return mouse_freelook && !demoplayback && !demorecording && !netgame;
+    return mouse_freelook && !demoplayback && !demorecording
+        && (!netgame || D_NetFreeLook());
 }
 
 //
@@ -258,7 +262,7 @@ void P_PlayerThink (player_t* player)
     }
 
     // Free look: pitch from the mouse; level out when dead or turned off.
-    if (player->playerstate == PST_DEAD || !P_FreeLook())
+    if (player->playerstate == PST_DEAD || !P_LookActive(player))
     {
 	if (player->lookdir > 64)
 	    player->lookdir -= 64;

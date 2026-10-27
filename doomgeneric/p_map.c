@@ -1000,7 +1000,7 @@ boolean PTR_ShootTraverse (intercept_t* in)
 
 	// Free look can aim a shot into the floor (or ceiling) before it
 	// reaches this wall: put the puff where it met the flat instead.
-	if (shootthing->player && P_FreeLook() && aimslope)
+	if (shootthing->player && P_LookActive(shootthing->player) && aimslope)
 	{
 	    sector_t*	sec;
 	    fixed_t	h;

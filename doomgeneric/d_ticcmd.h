@@ -53,9 +53,13 @@ typedef struct
     byte lookfly;               // look/fly up/down/centering
     byte arti;                  // artitype_t to use
 
-    // Free look: change in pitch this tic, in player_t.lookdir units
-    // (not recorded in demos or sent over the network).
+    // Free look: change in pitch this tic, in player_t.lookdir units, and
+    // LOOK_ACTIVE when this player is free-looking (crosshair aim, no
+    // autoaim) this tic. Not in demos; in net games, sent only between
+    // copies of this port (d_net.c), so with the original DOOM.EXE in
+    // the game it's always off.
     short lookdelta;
+    byte lookflags;
 } ticcmd_t;
 
 

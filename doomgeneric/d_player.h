@@ -80,8 +80,12 @@ typedef enum
 // range is limited to what still looks right (about 32 degrees each way).
 // With free look on, the player's shots go where the crosshair is: no
 // autoaim. LOOK_SLOPE is the matching vertical slope (fixed_t).
+// Whether a player is free-looking is in their ticcmd (lookflags), so in
+// a net game every machine agrees, tic by tic: P_LookActive.
 #define LOOKDIR_MAX	(100*8)
 #define LOOK_SLOPE(p)	((fixed_t)(((p)->lookdir * FRACUNIT) / (160*8)))
+#define LOOK_ACTIVE	1
+#define P_LookActive(p)	(((p)->cmd.lookflags & LOOK_ACTIVE) != 0)
 extern int mouse_freelook;      // config: mouse_freelook, 1 by default
 extern int mouse_invert;        // config: mouse_invert (pull back to look up)
 

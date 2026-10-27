@@ -353,6 +353,11 @@ static int      gametime;
 
 static boolean    reboundpacket;
 static doomdata_t reboundstore;
+static uint8_t    reboundext[sizeof(((doomcom_t *)0)->dataext)];
+static int        reboundlength;
+
+static boolean  nodeisport[MAXNETNODES];    // seen PORT_MARKER from it
+static boolean  packetext;                  // the packet in netbuffer has look_ext_t
 
 int D_VanillaNet(void)
 {
@@ -375,6 +380,26 @@ static doomcom_t *vanilla_doomcom(void)
         }
     }
     return doomcom;
+}
+
+// Every other node in the game runs this port: free look may go on.
+int D_NetFreeLook(void)
+{
+    int i;
+
+    if (!doomcom)
+        return false;
+    for (i = 1; i < doomcom->numnodes; i++)
+        if (nodeingame[i] && !nodeisport[i])
+            return false;
+    return true;
+}
+
+// The free-look extension: right after the packet's numtics ticcmds, which
+// is where it goes on the wire (it may run on into doomcom->dataext).
+static look_ext_t *PacketExt(void)
+{
+    return (look_ext_t *) &netbuffer->cmds[netbuffer->numtics];
 }
 
 // Vanilla's wire ticcmd <-> ours.
@@ -404,15 +429,23 @@ static int NetbufferSize(void)
     return (int) offsetof(doomdata_t, cmds) + netbuffer->numtics * (int) sizeof(vanilla_ticcmd_t);
 }
 
+// With the free-look extension (packets between copies of this port).
+static int NetbufferExtSize(void)
+{
+    return NetbufferSize() + netbuffer->numtics * (int) sizeof(look_ext_t);
+}
+
 // As DOS vanilla (the Linux port returned 0 here): a weighted sum of the
-// packet's words after the checksum.
-static unsigned NetbufferChecksum(void)
+// packet's words after the checksum. size: NetbufferSize(), or
+// NetbufferExtSize() for a packet with the extension (it follows the
+// vanilla part directly in doomcom_t).
+static unsigned NetbufferChecksum(int size)
 {
     unsigned c = 0x1234567;
     const uint8_t *p = &netbuffer->retransmitfrom;
     int i, l;
 
-    l = (NetbufferSize() - (int) offsetof(doomdata_t, retransmitfrom)) / 4;
+    l = (size - (int) offsetof(doomdata_t, retransmitfrom)) / 4;
     for (i = 0; i < l; i++)
     {
         uint32_t w = p[i*4] | p[i*4+1] << 8 | p[i*4+2] << 16 | (uint32_t) p[i*4+3] << 24;
@@ -437,13 +470,19 @@ static int ExpandTics(int low)
     return 0;
 }
 
-static void HSendPacket(int node, unsigned flags)
+// ext: the packet has the free-look extension (filled in by the caller);
+// only ever for this node or a node known to run this port.
+static void HSendPacket(int node, unsigned flags, boolean ext)
 {
-    netbuffer->checksum = NetbufferChecksum() | flags;
+    int size = ext && netbuffer->numtics ? NetbufferExtSize() : NetbufferSize();
+
+    netbuffer->checksum = NetbufferChecksum(size) | flags;
 
     if (!node)
     {
         reboundstore = *netbuffer;
+        memcpy(reboundext, doomcom->dataext, sizeof(reboundext));
+        reboundlength = size;
         reboundpacket = true;
         return;
     }
@@ -453,7 +492,7 @@ static void HSendPacket(int node, unsigned flags)
 
     doomcom->command = CMD_SEND;
     doomcom->remotenode = node;
-    doomcom->datalength = NetbufferSize();
+    doomcom->datalength = size;
     I_VanillaNetCmd();
 }
 
@@ -463,6 +502,8 @@ static boolean HGetPacket(void)
     if (reboundpacket)
     {
         *netbuffer = reboundstore;
+        memcpy(doomcom->dataext, reboundext, sizeof(reboundext));
+        packetext = reboundlength != NetbufferSize();
         doomcom->remotenode = 0;
         reboundpacket = false;
         return true;
@@ -478,10 +519,18 @@ static boolean HGetPacket(void)
         return false;
     if (doomcom->remotenode < 0 || doomcom->remotenode >= MAXNETNODES)
         return false;
-    if (netbuffer->numtics > VANILLA_BACKUPTICS
-     || doomcom->datalength != NetbufferSize())
+    if (netbuffer->numtics > VANILLA_BACKUPTICS)
         return false;
-    if (NetbufferChecksum() != (netbuffer->checksum & NCMD_CHECKSUM))
+
+    // A vanilla packet, or one with the free-look extension.
+    if (doomcom->datalength == NetbufferSize())
+        packetext = false;
+    else if (netbuffer->numtics && doomcom->datalength == NetbufferExtSize())
+        packetext = true;
+    else
+        return false;
+
+    if (NetbufferChecksum(doomcom->datalength) != (netbuffer->checksum & NCMD_CHECKSUM))
         return false;
 
     return true;
@@ -523,6 +572,11 @@ static void GetPackets(void)
 
         nodeforplayer[netconsole] = netnode;
 
+        // Another copy of this port (see PORT_MARKER).
+        if (packetext || (!(netbuffer->checksum & NCMD_RETRANSMIT)
+                          && netbuffer->retransmitfrom == PORT_MARKER))
+            nodeisport[netnode] = true;
+
         // check for retransmit request
         if (resendcount[netnode] <= 0
          && (netbuffer->checksum & NCMD_RETRANSMIT))
@@ -554,8 +608,15 @@ static void GetPackets(void)
             remoteresend[netnode] = false;
             while (nettics[netnode] < realend)
             {
-                UnpackCmd(&vnetcmds[netconsole][nettics[netnode] % BACKUPTICS],
-                          &netbuffer->cmds[i++]);
+                ticcmd_t *dest = &vnetcmds[netconsole][nettics[netnode] % BACKUPTICS];
+
+                UnpackCmd(dest, &netbuffer->cmds[i]);
+                if (packetext)
+                {
+                    dest->lookdelta = PacketExt()[i].lookdelta;
+                    dest->lookflags = PacketExt()[i].lookflags;
+                }
+                i++;
                 nettics[netnode]++;
             }
         }
@@ -567,6 +628,7 @@ void D_VanillaNetUpdate(void)
 {
     int nowtime, newtics;
     int i, j, realstart, gameticdiv;
+    boolean ext;
 
     // check time
     nowtime = I_GetTime() / ticdup;
@@ -619,18 +681,32 @@ void D_VanillaNetUpdate(void)
 
         resendto[i] = vmaketic - doomcom->extratics;
 
+        // Ourselves and other copies of this port get the look extension.
+        ext = i == 0 || nodeisport[i];
         for (j = 0; j < netbuffer->numtics; j++)
-            PackCmd(&netbuffer->cmds[j], &localcmds[(realstart+j) % BACKUPTICS]);
+        {
+            const ticcmd_t *c = &localcmds[(realstart+j) % BACKUPTICS];
+
+            PackCmd(&netbuffer->cmds[j], c);
+            if (ext)
+            {
+                PacketExt()[j].lookdelta = c->lookdelta;
+                PacketExt()[j].lookflags = c->lookflags;
+                PacketExt()[j].reserved = 0;
+            }
+            else if (c->lookflags)
+                I_Error("NetUpdate: free look to a node without it");
+        }
 
         if (remoteresend[i])
         {
             netbuffer->retransmitfrom = nettics[i];
-            HSendPacket(i, NCMD_RETRANSMIT);
+            HSendPacket(i, NCMD_RETRANSMIT, ext);
         }
         else
         {
-            netbuffer->retransmitfrom = 0;
-            HSendPacket(i, 0);
+            netbuffer->retransmitfrom = PORT_MARKER;    // vanilla ignores it here
+            HSendPacket(i, 0, ext);
         }
     }
 
@@ -713,7 +789,7 @@ static void ArbitrateNetStart(void)
                 netbuffer->starttic = startepisode * 64 + startmap;
                 netbuffer->player = version;
                 netbuffer->numtics = 0;
-                HSendPacket(i, NCMD_SETUP);
+                HSendPacket(i, NCMD_SETUP, false);
             }
 
             for (i = 10; i && HGetPacket(); --i)
@@ -790,7 +866,7 @@ void D_VanillaQuitNetGame(void)
     {
         for (j = 1; j < doomcom->numnodes; j++)
             if (nodeingame[j])
-                HSendPacket(j, NCMD_EXIT);
+                HSendPacket(j, NCMD_EXIT, false);
         I_Sleep(15);
     }
 }

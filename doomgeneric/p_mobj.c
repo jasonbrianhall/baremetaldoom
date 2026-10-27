@@ -1007,7 +1007,7 @@ P_SpawnPlayerMissile
     
     // see which target is to be aimed at
     an = source->angle;
-    if (source->player && P_FreeLook())
+    if (source->player && P_LookActive(source->player))
     {
 	// Free look: where the crosshair is, no autoaim.
 	slope = LOOK_SLOPE(source->player);

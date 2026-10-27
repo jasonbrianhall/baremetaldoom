@@ -61,12 +61,31 @@ typedef struct doomcom_s
     int16_t     angleoffset;            // 1 = left, 0 = center, -1 = right
     int16_t     drone;
     doomdata_t  data;
+
+    // Not vanilla: room for the free-look extension (below) right after
+    // the vanilla packet. The drivers' own buffers hold 512 bytes.
+    uint8_t     dataext[VANILLA_BACKUPTICS * 4];
 } doomcom_t;
 
 // Compile-time checks that the layouts are vanilla's.
 typedef char doomcom_check_ticcmd[sizeof(vanilla_ticcmd_t) == 8 ? 1 : -1];
 typedef char doomcom_check_data[sizeof(doomdata_t) == 104 ? 1 : -1];
-typedef char doomcom_check_doomcom[sizeof(doomcom_t) == 140 ? 1 : -1];
+typedef char doomcom_check_doomcom[sizeof(doomcom_t) == 140 + VANILLA_BACKUPTICS * 4 ? 1 : -1];
+
+// Free look between copies of this port. Each of our packets that isn't a
+// resend request carries PORT_MARKER in retransmitfrom (which vanilla only
+// reads in resend requests). Once a machine has seen it from every other
+// node, it sends them the free-look extension: after the numtics vanilla
+// ticcmds, one look_ext_t per ticcmd, the checksum then covering the
+// whole packet. A packet to the original DOOM.EXE never has it.
+#define PORT_MARKER         0xF1
+
+typedef struct
+{
+    int16_t     lookdelta;
+    uint8_t     lookflags;
+    uint8_t     reserved;
+} look_ext_t;
 
 // The platform's side, set before doomgeneric_Create when it has a driver
 // (the DOS build, from -net): NetInit returns its copy of the driver's
@@ -77,6 +96,9 @@ extern void (*I_VanillaNetCmd)(void);
 
 // d_net.c: true when this is a vanilla-driver net game.
 int D_VanillaNet(void);
+// True when every other machine in the game runs this port, so this one
+// may send free-look ticcmds (P_FreeLook).
+int D_NetFreeLook(void);
 void D_VanillaNetUpdate(void);
 void D_VanillaTryRunTics(void);
 void D_VanillaQuitNetGame(void);

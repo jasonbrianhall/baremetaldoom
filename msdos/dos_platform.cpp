@@ -544,6 +544,10 @@ static bool has_arg(int argc, char** argv, const char* a) {
 // copied across, run by the driver's real-mode interrupt, and copied back.
 static uint32_t net_addr;
 static doomcom_t net_dc;
+// The vanilla packet plus the free-look extension, which follows it.
+#define NET_DATA_MAX ((int)(sizeof(doomcom_t) - offsetof(doomcom_t, data)))
+static_assert(offsetof(doomcom_t, dataext) == offsetof(doomcom_t, data) + sizeof(doomdata_t),
+              "the extension must follow the packet");
 
 static doomcom_t* dos_net_init() {
     if (!net_addr) return nullptr;
@@ -559,7 +563,8 @@ static void dos_net_cmd() {
     if (net_dc.command == CMD_SEND) {
         _farpokew(_dos_ds, a + offsetof(doomcom_t, remotenode), (uint16_t)net_dc.remotenode);
         _farpokew(_dos_ds, a + offsetof(doomcom_t, datalength), (uint16_t)net_dc.datalength);
-        dosmemput(&net_dc.data, net_dc.datalength, a + offsetof(doomcom_t, data));
+        int n = net_dc.datalength < 0 ? 0 : net_dc.datalength > NET_DATA_MAX ? NET_DATA_MAX : net_dc.datalength;
+        dosmemput(&net_dc.data, n, a + offsetof(doomcom_t, data));
     }
     __dpmi_regs r;
     memset(&r, 0, sizeof r);
@@ -570,7 +575,7 @@ static void dos_net_cmd() {
         if (net_dc.remotenode != -1) {
             int n = net_dc.datalength;
             if (n < 0) n = 0;
-            if (n > (int)sizeof net_dc.data) n = sizeof net_dc.data;
+            if (n > NET_DATA_MAX) n = NET_DATA_MAX;
             dosmemget(a + offsetof(doomcom_t, data), n, &net_dc.data);
         }
     }

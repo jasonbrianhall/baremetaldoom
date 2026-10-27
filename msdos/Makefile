@@ -24,6 +24,8 @@
 # Net games: the original IPXSETUP.EXE / SERSETUP.EXE start it as they start
 # DOOM.EXE (they run DOOM2.EXE if there is one, else DOOM.EXE), and it can
 # play against the original DOOM.EXE: same IWAD, same version (1.9).
+# When every machine runs this port, free look stays on; with an original
+# DOOM.EXE in the game, everyone plays vanilla (mouse-forward, autoaim).
 #   ipxsetup -nodes 2 -deathmatch -warp 1 3
 VERSION = 20261027
 

@@ -612,7 +612,7 @@ void P_BulletSlope (mobj_t*	mo)
     angle_t	an;
     
     // Free look: straight where the crosshair is, no autoaim.
-    if (mo->player && P_FreeLook())
+    if (mo->player && P_LookActive(mo->player))
     {
 	bulletslope = LOOK_SLOPE(mo->player);
 	return;

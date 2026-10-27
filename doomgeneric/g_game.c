@@ -546,10 +546,13 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
 
     // Free look: vertical mouse motion is pitch, at the same rate as turning
     // (a lookdir unit and an angleturn step of 8 are both ~0.044 degrees).
-    // Demos and net games keep vanilla's mouse-forward and autoaim, so
-    // they stay in sync (P_FreeLook).
+    // Demos, and net games with the original DOOM.EXE in them, keep
+    // vanilla's mouse-forward and autoaim (P_FreeLook).
     if (P_FreeLook())
+    {
+        cmd->lookflags = LOOK_ACTIVE;
         cmd->lookdelta = mouse_invert ? -mousey : mousey;
+    }
     else
         forward += mousey; 
 
@@ -1922,6 +1925,8 @@ void G_ReadDemoTiccmd (ticcmd_t* cmd)
     } 
     cmd->forwardmove = ((signed char)*demo_p++); 
     cmd->sidemove = ((signed char)*demo_p++); 
+    cmd->lookdelta = 0;                 // demos are vanilla: no free look
+    cmd->lookflags = 0;
 
     // If this is a longtics demo, read back in higher resolution
 
