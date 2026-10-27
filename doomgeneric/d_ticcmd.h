@@ -38,7 +38,10 @@ typedef struct
     byte buttons;
     // villsa [STRIFE] according to the asm,
     // consistancy is a short, not a byte
-    byte consistancy;           // checks for net game
+    // (Doom's is a short too: the low 16 bits of the player's x, compared
+    // by every peer in a net game, so it must be all of it to play with
+    // the original DOOM.EXE.)
+    short consistancy;          // checks for net game
 
     // villsa - Strife specific:
 

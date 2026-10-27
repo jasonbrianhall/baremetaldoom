@@ -43,6 +43,10 @@ extern "C" {
 #include "audio.hpp"
 #include "mixer.hpp"
 #include "music.h"
+extern "C" {
+#include "d_doomcom.h"
+}
+#include <stddef.h>
 
 // The keyboard handler runs at interrupt time and touches our data: lock
 // everything (code, data, stack, heap) so the DPMI host never pages it out.
@@ -533,6 +537,45 @@ static bool has_arg(int argc, char** argv, const char* a) {
     return false;
 }
 
+// ================================================================ network
+// The original network drivers (IPXSETUP.EXE, SERSETUP.EXE) start the game
+// with "-net <address>": the linear address of their doomcom_t, in
+// conventional memory. Doom (d_net.c) works on a copy; each command is
+// copied across, run by the driver's real-mode interrupt, and copied back.
+static uint32_t net_addr;
+static doomcom_t net_dc;
+
+static doomcom_t* dos_net_init() {
+    if (!net_addr) return nullptr;
+    dosmemget(net_addr, sizeof net_dc, &net_dc);
+    printf("Network: driver at %lXh, interrupt %Xh, %d node(s)\n", (unsigned long)net_addr,
+           (unsigned)(uint16_t)net_dc.intnum, net_dc.numnodes);
+    return &net_dc;
+}
+
+static void dos_net_cmd() {
+    const uint32_t a = net_addr;
+    _farpokew(_dos_ds, a + offsetof(doomcom_t, command), (uint16_t)net_dc.command);
+    if (net_dc.command == CMD_SEND) {
+        _farpokew(_dos_ds, a + offsetof(doomcom_t, remotenode), (uint16_t)net_dc.remotenode);
+        _farpokew(_dos_ds, a + offsetof(doomcom_t, datalength), (uint16_t)net_dc.datalength);
+        dosmemput(&net_dc.data, net_dc.datalength, a + offsetof(doomcom_t, data));
+    }
+    __dpmi_regs r;
+    memset(&r, 0, sizeof r);
+    __dpmi_int((uint8_t)net_dc.intnum, &r);
+    if (net_dc.command == CMD_GET) {
+        net_dc.remotenode = (int16_t)_farpeekw(_dos_ds, a + offsetof(doomcom_t, remotenode));
+        net_dc.datalength = (int16_t)_farpeekw(_dos_ds, a + offsetof(doomcom_t, datalength));
+        if (net_dc.remotenode != -1) {
+            int n = net_dc.datalength;
+            if (n < 0) n = 0;
+            if (n > (int)sizeof net_dc.data) n = sizeof net_dc.data;
+            dosmemget(a + offsetof(doomcom_t, data), n, &net_dc.data);
+        }
+    }
+}
+
 extern "C" void doomgeneric_Create(int argc, char** argv);
 extern "C" void doomgeneric_Tick(void);
 
@@ -542,6 +585,14 @@ int main(int argc, char** argv) {
     printf("Doom for MS-DOS (doomgeneric, DJGPP)\n");
 
     vsync = has_arg(argc, argv, "-vsync");
+    for (int i = 1; i + 1 < argc; i++)
+        if (!strcasecmp(argv[i], "-net")) {
+            unsigned long a = strtoul(argv[i + 1], nullptr, 10);
+            if (a && a < 0x100000 - sizeof(doomcom_t)) net_addr = (uint32_t)a;
+            else printf("Network: -net %s isn't a conventional-memory address\n", argv[i + 1]);
+        }
+    I_VanillaNetInit = dos_net_init;
+    I_VanillaNetCmd = dos_net_cmd;
     // Sound latency: -latency MS (default 120). More on a slow machine if it crackles.
     uint32_t latency_ms = 120;
     for (int i = 1; i + 1 < argc; i++)

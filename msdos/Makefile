@@ -20,6 +20,11 @@
 # Runs on a 386 or later with a 387 (or a 486DX); without one, put
 # EMU387.DXE (DJGPP v2misc) next to it. 8 MB of RAM or more. Put the WAD in
 # the same directory (or set DOOMWADDIR). Sound: BLASTER=A220 I5 D1.
+#
+# Net games: the original IPXSETUP.EXE / SERSETUP.EXE start it as they start
+# DOOM.EXE (they run DOOM2.EXE if there is one, else DOOM.EXE), and it can
+# play against the original DOOM.EXE: same IWAD, same version (1.9).
+#   ipxsetup -nodes 2 -deathmatch -warp 1 3
 VERSION = 20261027
 
 DOOM    := ../doomgeneric

@@ -147,7 +147,12 @@ int             testcontrols_mousespeed;
  
 wbstartstruct_t wminfo;               	// parms for world map / intermission 
  
-byte		consistancy[MAXPLAYERS][BACKUPTICS]; 
+// Net game sync check, as vanilla: each ticcmd carries the player's x from
+// CONSISTANCY_TICS tics earlier, and every peer compares it with its own.
+// Vanilla's window is its BACKUPTICS, 12; it must match to play with
+// DOOM.EXE (d_net.c, -net).
+#define CONSISTANCY_TICS 12
+short		consistancy[MAXPLAYERS][CONSISTANCY_TICS]; 
  
 #define MAXPLMOVE		(forwardmove[1]) 
  
@@ -337,7 +342,7 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     memset(cmd, 0, sizeof(ticcmd_t));
 
     cmd->consistancy = 
-	consistancy[consoleplayer][maketic%BACKUPTICS]; 
+	consistancy[consoleplayer][maketic%CONSISTANCY_TICS]; 
  
     strafe = gamekeydown[key_strafe] || mousebuttons[mousebstrafe] 
 	|| joybuttons[joybstrafe]; 
@@ -915,7 +920,7 @@ void G_Ticker (void)
     
     // get commands, check consistancy,
     // and build new consistancy check
-    buf = (gametic/ticdup)%BACKUPTICS; 
+    buf = (gametic/ticdup)%CONSISTANCY_TICS; 
  
     for (i=0 ; i<MAXPLAYERS ; i++)
     {
@@ -957,7 +962,7 @@ void G_Ticker (void)
 
 	    if (netgame && !netdemo && !(gametic%ticdup) ) 
 	    { 
-		if (gametic > BACKUPTICS 
+		if (gametic > CONSISTANCY_TICS 
 		    && consistancy[i][buf] != cmd->consistancy) 
 		{ 
 		    I_Error ("consistency failure (%i should be %i)",
