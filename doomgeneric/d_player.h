@@ -75,11 +75,24 @@ typedef enum
 //
 // Extended player object info: player_t
 //
+// Free look (mouse_freelook): the view pitch, in 1/8ths of a pixel of
+// y-shear at 320 wide, up positive. The renderer shears the view, so the
+// range is limited to what still looks right (about 32 degrees each way).
+// With free look on, the player's shots go where the crosshair is: no
+// autoaim. LOOK_SLOPE is the matching vertical slope (fixed_t).
+#define LOOKDIR_MAX	(100*8)
+#define LOOK_SLOPE(p)	((fixed_t)(((p)->lookdir * FRACUNIT) / (160*8)))
+extern int mouse_freelook;      // config: mouse_freelook, 1 by default
+extern int mouse_invert;        // config: mouse_invert (pull back to look up)
+
 typedef struct player_s
 {
     mobj_t*		mo;
     playerstate_t	playerstate;
     ticcmd_t		cmd;
+
+    // Free look: view pitch, see LOOKDIR_MAX. Not saved in savegames.
+    int			lookdir;
 
     // Determine POV,
     //  including viewpoint bobbing during movement.

@@ -765,6 +765,20 @@ static default_t extra_defaults_list[] =
     CONFIG_VARIABLE_INT(novert),
 
     //!
+    // If non-zero (the default), vertical mouse movement looks up and
+    // down, Quake style, and shots go where the crosshair points (no
+    // autoaim). Zero: vanilla Doom's mouse-forward and autoaim.
+    //
+
+    CONFIG_VARIABLE_INT(mouse_freelook),
+
+    //!
+    // If non-zero, pulling the mouse back looks up (free look only).
+    //
+
+    CONFIG_VARIABLE_INT(mouse_invert),
+
+    //!
     // Mouse acceleration factor.  When the speed of mouse movement
     // exceeds the threshold value (mouse_threshold), the speed is
     // multiplied by this value.

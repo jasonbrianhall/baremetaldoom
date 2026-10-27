@@ -1007,6 +1007,14 @@ P_SpawnPlayerMissile
     
     // see which target is to be aimed at
     an = source->angle;
+    if (source->player && P_FreeLook())
+    {
+	// Free look: where the crosshair is, no autoaim.
+	slope = LOOK_SLOPE(source->player);
+	linetarget = NULL;
+    }
+    else
+    {
     slope = P_AimLineAttack (source, an, 16*64*FRACUNIT);
     
     if (!linetarget)
@@ -1025,6 +1033,7 @@ P_SpawnPlayerMissile
 	    an = source->angle;
 	    slope = 0;
 	}
+    }
     }
 		
     x = source->x;

@@ -49,6 +49,10 @@ typedef struct
 
     byte lookfly;               // look/fly up/down/centering
     byte arti;                  // artitype_t to use
+
+    // Free look: change in pitch this tic, in player_t.lookdir units
+    // (not recorded in demos or sent over the network).
+    short lookdelta;
 } ticcmd_t;
 
 

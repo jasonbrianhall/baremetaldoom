@@ -205,6 +205,11 @@ static boolean *mousebuttons = &mousearray[1];  // allow [-1]
 int             mousex;
 int             mousey;         
 
+// Free look: the mouse's vertical motion turns the view up and down
+// instead of moving forward and back.
+int             mouse_freelook = 1;
+int             mouse_invert = 0;
+
 static int      dclicktime;
 static boolean  dclickstate;
 static int      dclicks; 
@@ -534,7 +539,14 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
         } 
     }
 
-    forward += mousey; 
+    // Free look: vertical mouse motion is pitch, at the same rate as turning
+    // (a lookdir unit and an angleturn step of 8 are both ~0.044 degrees).
+    // Demos and net games keep vanilla's mouse-forward and autoaim, so
+    // they stay in sync (P_FreeLook).
+    if (P_FreeLook())
+        cmd->lookdelta = mouse_invert ? -mousey : mousey;
+    else
+        forward += mousey; 
 
     if (strafe) 
 	side += mousex*2; 
@@ -827,8 +839,8 @@ boolean G_Responder (event_t* ev)
 		 
       case ev_mouse: 
         SetMouseButtons(ev->data1);
-	mousex = ev->data2*(mouseSensitivity+5)/10; 
-	mousey = ev->data3*(mouseSensitivity+5)/10; 
+	mousex += ev->data2*(mouseSensitivity+5)/10; 
+	mousey += ev->data3*(mouseSensitivity+5)/10; 
 	return true;    // eat events 
  
       case ev_joystick: 

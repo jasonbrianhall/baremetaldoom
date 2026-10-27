@@ -740,6 +740,8 @@ void R_DrawPlayerSprites (void)
     int		i;
     int		lightnum;
     pspdef_t*	psp;
+    int		savedcentery;
+    fixed_t	savedcenteryfrac;
     
     // get light level
     lightnum =
@@ -756,6 +758,12 @@ void R_DrawPlayerSprites (void)
     // clip to screen bounds
     mfloorclip = screenheightarray;
     mceilingclip = negonearray;
+
+    // Free look moves the horizon (centery); the weapon doesn't move with it.
+    savedcentery = centery;
+    savedcenteryfrac = centeryfrac;
+    centery = viewheight/2;
+    centeryfrac = centery<<FRACBITS;
     
     // add all active psprites
     for (i=0, psp=viewplayer->psprites;
@@ -765,6 +773,9 @@ void R_DrawPlayerSprites (void)
 	if (psp->state)
 	    R_DrawPSprite (psp);
     }
+
+    centery = savedcentery;
+    centeryfrac = savedcenteryfrac;
 }
 
 

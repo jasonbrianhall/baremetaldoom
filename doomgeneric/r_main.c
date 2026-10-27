@@ -34,6 +34,7 @@
 
 #include "r_local.h"
 #include "r_sky.h"
+#include "p_local.h"     // P_FreeLook
 
 
 
@@ -662,6 +663,57 @@ R_SetViewSize
 
 
 //
+// Free look: the view is sheared, as Heretic does it. Looking up moves the
+// horizon (centery) down by the pitch's slope times the projection, and the
+// flats' row distances (yslope) are recomputed around the new horizon.
+//
+static int lookoffset;          // centery - viewheight/2, in pixels
+
+extern byte*	ylookup[];       // r_draw.c: the view window's rows and columns
+extern int	columnofs[];
+
+static void R_SetLookOffset (int offset)
+{
+    int		i;
+    fixed_t	dy;
+
+    lookoffset = offset;
+    centery = viewheight/2 + offset;
+    centeryfrac = centery<<FRACBITS;
+
+    for (i=0 ; i<viewheight ; i++)
+    {
+	dy = ((i-centery)<<FRACBITS)+FRACUNIT/2;
+	dy = abs(dy);
+	yslope[i] = FixedDiv ( (viewwidth<<detailshift)/2*FRACUNIT, dy);
+    }
+}
+
+//
+// R_DrawCrosshair
+// A small plus in the middle of the view: where free-look shots go.
+//
+static void R_DrawCrosshair (void)
+{
+    int		cx = scaledviewwidth/2;
+    int		cy = viewheight/2;
+    int		i;
+    const byte	white = 4;      // PLAYPAL: 255,255,255
+
+    if (!P_FreeLook () || viewplayer->playerstate == PST_DEAD
+     || cx < 4 || cy < 4)
+	return;
+
+    for (i=2 ; i<=4 ; i++)
+    {
+	ylookup[cy][columnofs[cx-i]] = white;
+	ylookup[cy][columnofs[cx+i]] = white;
+	ylookup[cy-i][columnofs[cx]] = white;
+	ylookup[cy+i][columnofs[cx]] = white;
+    }
+}
+
+//
 // R_ExecuteSetViewSize
 //
 void R_ExecuteSetViewSize (void)
@@ -722,13 +774,8 @@ void R_ExecuteSetViewSize (void)
     for (i=0 ; i<viewwidth ; i++)
 	screenheightarray[i] = viewheight;
     
-    // planes
-    for (i=0 ; i<viewheight ; i++)
-    {
-	dy = ((i-viewheight/2)<<FRACBITS)+FRACUNIT/2;
-	dy = abs(dy);
-	yslope[i] = FixedDiv ( (viewwidth<<detailshift)/2*FRACUNIT, dy);
-    }
+    // planes (around the horizon, which free look moves)
+    R_SetLookOffset (0);
 	
     for (i=0 ; i<viewwidth ; i++)
     {
@@ -831,6 +878,13 @@ void R_SetupFrame (player_t* player)
     extralight = player->extralight;
 
     viewz = player->viewz;
+
+    // Free look: lookdir is 1/8 px of shear at 320 wide; scale to the view.
+    {
+	int offset = (player->lookdir * scaledviewwidth) / (SCREENWIDTH*8);
+	if (offset != lookoffset)
+	    R_SetLookOffset (offset);
+    }
     
     viewsin = finesine[viewangle>>ANGLETOFINESHIFT];
     viewcos = finecosine[viewangle>>ANGLETOFINESHIFT];
@@ -885,6 +939,8 @@ void R_RenderPlayerView (player_t* player)
     NetUpdate ();
     
     R_DrawMasked ();
+
+    R_DrawCrosshair ();
 
     // Check for new console commands.
     NetUpdate ();				

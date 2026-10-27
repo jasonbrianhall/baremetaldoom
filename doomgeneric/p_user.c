@@ -224,6 +224,16 @@ void P_DeathThink (player_t* player)
 
 
 //
+// P_FreeLook
+// Free look and crosshair aiming are on: the config says so, and this
+// isn't a demo or a net game (the pitch isn't recorded or sent).
+//
+boolean P_FreeLook (void)
+{
+    return mouse_freelook && !demoplayback && !demorecording && !netgame;
+}
+
+//
 // P_PlayerThink
 //
 void P_PlayerThink (player_t* player)
@@ -245,6 +255,25 @@ void P_PlayerThink (player_t* player)
 	cmd->forwardmove = 0xc800/512;
 	cmd->sidemove = 0;
 	player->mo->flags &= ~MF_JUSTATTACKED;
+    }
+
+    // Free look: pitch from the mouse; level out when dead or turned off.
+    if (player->playerstate == PST_DEAD || !P_FreeLook())
+    {
+	if (player->lookdir > 64)
+	    player->lookdir -= 64;
+	else if (player->lookdir < -64)
+	    player->lookdir += 64;
+	else
+	    player->lookdir = 0;
+    }
+    else
+    {
+	player->lookdir += cmd->lookdelta;
+	if (player->lookdir > LOOKDIR_MAX)
+	    player->lookdir = LOOKDIR_MAX;
+	else if (player->lookdir < -LOOKDIR_MAX)
+	    player->lookdir = -LOOKDIR_MAX;
     }
 			
 	
