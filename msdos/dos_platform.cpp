@@ -99,6 +99,7 @@ static uint8_t* line;                   // one screen row, in the screen's forma
 static uint32_t pal_native[256];
 static uint32_t pal_rgb[256];
 static int want_w, want_h;              // -vesa / DOOMVID
+static char mode_msg[320];              // which mode, shown after the game (con_log)
 
 static void vga_mode(int mode) {
     __dpmi_regs r;
@@ -145,9 +146,11 @@ static bool vesa_init(int w, int h) {
         modes[nm] = m;
     }
 
-    // The frame as shown: w x 1.2h. Best: it fits without shrinking, fills
-    // the screen (a 16:9 mode for widescreen), with the fewest pixels to
-    // write; 8 bits (the palette is the DAC's) before 16, 15, 32, 24.
+    // The frame as shown: w x 1.2h. Best: the mode its shape fills most
+    // (a 16:9 one for widescreen: 848x480 in DOSBox Staging with
+    // vesa_modes=all), big enough (a few pixels short is fine: scaled to
+    // fit), then the fewest pixels to write; 8 bits (the palette is the
+    // DAC's) before 16, 15, 32, 24.
     double need_w = w, need_h = h * 1.2;
     int best = -1;
     double best_score = -1e9;
@@ -162,12 +165,14 @@ static bool vesa_init(int w, int h) {
         if (bpp != 8 && bpp != 15 && bpp != 16 && bpp != 24 && bpp != 32) continue;
         bool lfb = (attr & 0x80) && ver >= 0x200 && rd32(mi + 40);
         if (!lfb && (mi[2] & 5) != 5) continue;         // window A must be writable
-        double sc = mw / need_w < mh / need_h ? mw / need_w : mh / need_h;
-        double usage = (need_w * sc) * (need_h * sc) / ((double)mw * mh);
+        // 640x400 is shown at 4:3 (by DOSBox and on a CRT): taller pixels.
+        double mh_shown = (mw == 640 && mh == 400) ? 480 : mh;
+        double sc = mw / need_w < mh_shown / need_h ? mw / need_w : mh_shown / need_h;
+        double usage = (need_w * sc) * (need_h * sc) / ((double)mw * mh_shown);
         double score;
         if (want_w && mw == want_w && mh == want_h) score = 100000;
-        else if (sc < 0.999) score = sc * 1000;         // would have to shrink
-        else score = 5000 + usage * 3000 - ((double)mw * mh) / (need_w * need_h) * 50;
+        else if (sc < 0.97) score = sc * 1000;          // too small
+        else score = 5000 + usage * 4000 - ((double)mw * mh) / (need_w * need_h) * 20;
         static const int pref[] = {8, 16, 15, 32, 24};
         for (int k = 0; k < 5; k++) if (pref[k] == bpp) score += 40 - k * 8;
         if (lfb) score += 5;
@@ -217,8 +222,15 @@ static bool vesa_init(int w, int h) {
     if (r.x.ax != 0x004F) return false;
     vmode = lfb ? V_LFB : V_BANKED;
     cur_bank = -1;
-    printf("Video: VESA mode %Xh, %ux%u, %d bits, %s\n", best, fb_w, fb_h, bpp,
-           lfb ? "linear framebuffer" : "banked window");
+    snprintf(mode_msg, sizeof mode_msg, "Video: VESA mode %Xh, %ux%u, %d bits, %s\n", best, fb_w, fb_h, bpp,
+             lfb ? "linear framebuffer" : "banked window");
+    // A widescreen picture in a mode of another shape has bars: say why.
+    if (w * 5 > h * 9 && (fb_w * 9 < fb_h * 15 || (fb_w == 640 && fb_h == 400))) {   // a wide picture, a 4:3 screen
+        size_t n = strlen(mode_msg);
+        snprintf(mode_msg + n, sizeof mode_msg - n,
+                 "Video: no widescreen VESA mode on this card, so the picture has bars.\n"
+                 "       DOSBox Staging: vesa_modes = all (848x480). Or -vesa WxH.\n");
+    }
     return true;
 }
 
@@ -256,9 +268,12 @@ static void fb_clear() {
             fb_write(y * fb_pitch + x, zero, fb_pitch - x < sizeof zero ? fb_pitch - x : sizeof zero);
 }
 
-// The largest rectangle of the frame's shape (w : 1.2h) that fits.
+// The largest rectangle of the frame's shape (w : 1.2h) that fits. Modes
+// shown at 4:3 with non-square pixels (320x200, 640x400) count their
+// pixels as 1.2 times taller.
 static void scaler_setup(int w, int h) {
-    uint64_t aw = (uint64_t)w * 5, ah = (uint64_t)h * 6;
+    bool tall = (fb_w == 320 && fb_h == 200) || (fb_w == 640 && fb_h == 400);
+    uint64_t aw = (uint64_t)w * 5, ah = (uint64_t)h * (tall ? 5 : 6);
     dst_w = fb_w; dst_h = (uint32_t)(fb_w * ah / aw);
     if (dst_h > fb_h) { dst_h = fb_h; dst_w = (uint32_t)(fb_h * aw / ah); }
     if (dst_w > fb_w) dst_w = fb_w;
@@ -277,6 +292,7 @@ static void graphics_start(int w, int h) {
     if (!(w == 320 && h == 200 && !want_w) && vesa_init(w, h)) {
         graphics_on = true;
         scaler_setup(w, h);
+        printf("%s", mode_msg);                         // kept, shown on exit
     } else {
         if (w != 320 || h != 200)
             printf("Video: no VESA mode for %dx%d; showing it in mode 13h\n", w, h);

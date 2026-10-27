@@ -132,7 +132,7 @@ run: msdos_embedded
 	@mkdir -p $(BUILD)/dosc
 	cp $(DOS_TARGET) $(BUILD)/dosc/
 	for w in $(WAD); do cp "$$w" "$(BUILD)/dosc/$$(basename "$$w" | tr a-z A-Z)"; done
-	printf '[cpu]\ncore=dynamic\ncputype=auto\ncycles=max\n[dosbox]\nmachine=svga_s3\nmemsize=32\n[sblaster]\nsbtype=sb16\nsbbase=220\nirq=7\ndma=1\nhdma=5\n[autoexec]\nset BLASTER=A220 I7 D1 H5 T6\n' > $(BUILD)/dosbox.conf
+	printf '[cpu]\ncore=dynamic\ncputype=auto\ncycles=max\n[dosbox]\nmachine=svga_s3\nmemsize=32\nvesa_modes=all\nvmemsize=8\n[sblaster]\nsbtype=sb16\nsbbase=220\nirq=7\ndma=1\nhdma=5\n[autoexec]\nset BLASTER=A220 I7 D1 H5 T6\n' > $(BUILD)/dosbox.conf
 	dosbox -conf $(BUILD)/dosbox.conf -c "mount c $(BUILD)/dosc" -c "c:" -c "$(DOS_TARGET) $(ARGS)"
 
 clean:
