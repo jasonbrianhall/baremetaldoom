@@ -122,6 +122,20 @@ static default_t	doom_defaults_list[] =
     CONFIG_VARIABLE_INT(mouse_sensitivity),
 
     //!
+    // If non-zero (the default), vertical mouse movement looks up and
+    // down, Quake style, and shots go where the crosshair points (no
+    // autoaim). Zero: vanilla Doom's mouse-forward and autoaim.
+    //
+
+    CONFIG_VARIABLE_INT(mouse_freelook),
+
+    //!
+    // If non-zero, pulling the mouse back looks up (free look only).
+    //
+
+    CONFIG_VARIABLE_INT(mouse_invert),
+
+    //!
     // Volume of sound effects, range 0-15.
     //
 
@@ -763,20 +777,6 @@ static default_t extra_defaults_list[] =
     //
 
     CONFIG_VARIABLE_INT(novert),
-
-    //!
-    // If non-zero (the default), vertical mouse movement looks up and
-    // down, Quake style, and shots go where the crosshair points (no
-    // autoaim). Zero: vanilla Doom's mouse-forward and autoaim.
-    //
-
-    CONFIG_VARIABLE_INT(mouse_freelook),
-
-    //!
-    // If non-zero, pulling the mouse back looks up (free look only).
-    //
-
-    CONFIG_VARIABLE_INT(mouse_invert),
 
     //!
     // Mouse acceleration factor.  When the speed of mouse movement
@@ -1760,15 +1760,17 @@ static void SetVariable(default_t *def, char *value)
             // file (save the old value in untranslated)
 
             intparm = ParseIntParameter(value);
+            if (intparm < 0 || intparm >= 128)
+            {
+                // Not a DOS scan code (earlier builds of this port saved
+                // Fire and Use as 163 and 162): keep the default, and
+                // save a proper scan code for it next time.
+                def->untranslated = 0;
+                def->original_translated = * (int *) def->location;
+                break;
+            }
             def->untranslated = intparm;
-            if (intparm >= 0 && intparm < 128)
-            {
-                intparm = scantokey[intparm];
-            }
-            else
-            {
-                intparm = 0;
-            }
+            intparm = scantokey[intparm];
 
             def->original_translated = intparm;
             * (int *) def->location = intparm;

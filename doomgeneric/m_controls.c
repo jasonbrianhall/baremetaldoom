@@ -35,8 +35,10 @@ int key_up = 'w';
 int key_down = 's'; 
 int key_strafeleft = 'a';
 int key_straferight = 'd';
-int key_fire = KEY_FIRE;
-int key_use = KEY_USE;
+// Real keys, not doomkeys.h's KEY_FIRE/KEY_USE stand-ins: default.cfg holds
+// DOS scan codes, and those have none.
+int key_fire = KEY_RCTRL;
+int key_use = ' ';
 int key_strafe = KEY_RALT;
 int key_speed = KEY_RSHIFT; 
 

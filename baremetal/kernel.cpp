@@ -390,7 +390,7 @@ static int doom_key(bool ext, uint8_t code) {
     if (ext) {
         switch (code) {
         case 0x1C: return KEY_ENTER;                       // keypad Enter
-        case 0x1D: return KEY_FIRE;                        // right Ctrl
+        case 0x1D: return KEY_RCTRL;                       // right Ctrl: fire
         case 0x35: return '/';
         case 0x38: return KEY_RALT;                        // right Alt: strafe
         case 0x47: return KEY_HOME;
@@ -412,10 +412,10 @@ static int doom_key(bool ext, uint8_t code) {
     case 0x0E: return KEY_BACKSPACE;
     case 0x0F: return KEY_TAB;
     case 0x1C: return KEY_ENTER;
-    case 0x1D: return KEY_FIRE;                            // Ctrl: fire
+    case 0x1D: return KEY_RCTRL;                           // Ctrl: fire
     case 0x2A: case 0x36: return KEY_RSHIFT;               // Shift: run
     case 0x38: return KEY_LALT;                            // Alt: strafe
-    case 0x39: return KEY_USE;                             // Space: use
+    case 0x39: return ' ';                                 // Space: use
     case 0x3A: return KEY_CAPSLOCK;
     case 0x45: return KEY_NUMLOCK;
     case 0x46: return KEY_SCRLCK;
