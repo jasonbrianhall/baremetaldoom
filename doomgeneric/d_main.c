@@ -258,7 +258,7 @@ void D_Display (void)
     }
 
     // see if the border needs to be updated to the screen
-    if (gamestate == GS_LEVEL && !automapactive && scaledviewwidth != 320)
+    if (gamestate == GS_LEVEL && !automapactive && scaledviewwidth != SCREENWIDTH)
     {
 		if (menuactive || menuactivestate || !viewactivestate)
 			borderdrawcount = 3;
@@ -287,8 +287,9 @@ void D_Display (void)
 		if (automapactive)
 			y = 4;
 		else
-			y = viewwindowy+4;
-		V_DrawPatchDirect(viewwindowx + (scaledviewwidth - 68) / 2, y,
+			y = viewwindowy/HIRES+4;
+		// Centered over the view, in patch coordinates.
+		V_DrawPatchDirect((viewwindowx + (scaledviewwidth - 68*HIRES) / 2) / HIRES - WIDESCREENDELTA, y,
 							  W_CacheLumpName (DEH_String("M_PAUSE"), PU_CACHE));
     }
 
@@ -364,6 +365,8 @@ void D_BindVariables(void)
     M_BindVariable("music_volume",           &musicVolume);
     M_BindVariable("show_messages",          &showMessages);
     M_BindVariable("screenblocks",           &screenblocks);
+    M_BindVariable("screen_scale",           &screen_scale);
+    M_BindVariable("screen_widescreen",      &screen_widescreen);
     M_BindVariable("detaillevel",            &detailLevel);
     M_BindVariable("snd_channels",           &snd_channels);
     M_BindVariable("vanilla_savegame_limit", &vanilla_savegame_limit);
@@ -1377,6 +1380,9 @@ void D_DoomMain (void)
     M_SetConfigFilenames("default.cfg", "dgextra.cfg");   // 8.3 names, for DOS
     D_BindVariables();
     M_LoadDefaults();
+
+    // The screen size, before anything allocates screen-sized buffers.
+    I_SetScreenDimensions();
 
     // Save configuration at exit.
     I_AtExit(M_SaveDefaults, false);

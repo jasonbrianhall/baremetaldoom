@@ -6,8 +6,8 @@
 #include "i_video.h"
 #include "bm.h"
 
-#if DOOMGENERIC_RESX != BM_W || DOOMGENERIC_RESY != BM_H || !defined(CMAP256)
-#error "build with -DCMAP256 -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200"
+#ifndef CMAP256
+#error "build with -DCMAP256 (8-bit frames)"
 #endif
 
 void DG_Init(void) {}
@@ -19,7 +19,7 @@ void DG_DrawFrame(void)
         bm_set_palette((const uint32_t*)colors);
         palette_changed = false;
     }
-    bm_draw((const uint8_t*)DG_ScreenBuffer);
+    bm_draw((const uint8_t*)DG_ScreenBuffer, SCREENWIDTH, SCREENHEIGHT);
 }
 
 void DG_SleepMs(uint32_t ms) { bm_sleep_ms(ms); }

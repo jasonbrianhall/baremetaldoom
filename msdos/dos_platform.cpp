@@ -75,6 +75,31 @@ static int con_hook(__FSEXT_Fnumber n, int* rv, va_list args) {
 }
 
 // ---------------------------------------------------------------- video
+// 320x200 (the default): VGA mode 13h, Doom's own resolution, a straight
+// copy. Anything else (-hires, -widescreen): a VESA mode, Doom's frame
+// scaled up to the largest rectangle of its shape -- its pixels being 1.2
+// times taller than wide -- black around it. The mode is picked from the
+// card's list (or -vesa WxH / DOOMVID=WxH); 8-bit palette modes, or 15, 16,
+// 24 or 32 bits through a palette lookup; linear framebuffer, or a banked
+// window on cards without one.
+enum VMode { V_NONE, V_13H, V_LFB, V_BANKED };
+static VMode vmode = V_NONE;
+static uint32_t fb_w, fb_h, fb_pitch;
+static int fb_bytes = 1;
+static bool fb_indexed = true;
+static uint8_t r_pos, r_len, g_pos, g_len, b_pos, b_len;
+static int lfb_sel = -1;
+static __dpmi_meminfo lfb_map;
+static uint32_t win_seg = 0xA000, win_gran = 65536, win_size = 65536;
+static int cur_bank = -1;
+static int frame_w, frame_h;            // the frame the scaler is set up for
+static uint32_t dst_x, dst_y, dst_w, dst_h;
+static uint16_t* xmap;                  // screen column -> frame column
+static uint8_t* line;                   // one screen row, in the screen's format
+static uint32_t pal_native[256];
+static uint32_t pal_rgb[256];
+static int want_w, want_h;              // -vesa / DOOMVID
+
 static void vga_mode(int mode) {
     __dpmi_regs r;
     memset(&r, 0, sizeof r);
@@ -82,10 +107,197 @@ static void vga_mode(int mode) {
     __dpmi_int(0x10, &r);
 }
 
-static void graphics_start();
+static uint16_t rd16(const uint8_t* p) { return (uint16_t)(p[0] | p[1] << 8); }
+static uint32_t rd32(const uint8_t* p) { return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 
-extern "C" void bm_set_palette(const uint32_t* rgb) {
-    graphics_start();                                   // setting the mode resets the DAC: first
+static bool vbe_mode_info(int mode, uint8_t mi[256]) {
+    __dpmi_regs r;
+    memset(&r, 0, sizeof r);
+    r.x.ax = 0x4F01; r.x.cx = (unsigned short)mode;
+    r.x.es = __tb >> 4; r.x.di = __tb & 15;
+    __dpmi_int(0x10, &r);
+    if (r.x.ax != 0x004F) return false;
+    dosmemget(__tb, 256, mi);
+    return true;
+}
+
+// A VESA mode for a w x h frame. False: no VESA BIOS, or nothing usable.
+static bool vesa_init(int w, int h) {
+    uint8_t info[512];
+    memset(info, 0, sizeof info);
+    memcpy(info, "VBE2", 4);
+    dosmemput(info, sizeof info, __tb);
+    __dpmi_regs r;
+    memset(&r, 0, sizeof r);
+    r.x.ax = 0x4F00; r.x.es = __tb >> 4; r.x.di = __tb & 15;
+    __dpmi_int(0x10, &r);
+    if (r.x.ax != 0x004F) return false;
+    dosmemget(__tb, sizeof info, info);
+    if (memcmp(info, "VESA", 4) != 0) return false;
+    int ver = rd16(info + 4);
+    uint32_t lp = rd32(info + 14);
+    uint32_t list_lin = ((lp >> 16) << 4) + (lp & 0xFFFF);
+    uint16_t modes[256];
+    int nm = 0;
+    for (; nm < 255; nm++) {
+        uint16_t m = _farpeekw(_dos_ds, list_lin + nm * 2);
+        if (m == 0xFFFF) break;
+        modes[nm] = m;
+    }
+
+    // The frame as shown: w x 1.2h. Best: it fits without shrinking, fills
+    // the screen (a 16:9 mode for widescreen), with the fewest pixels to
+    // write; 8 bits (the palette is the DAC's) before 16, 15, 32, 24.
+    double need_w = w, need_h = h * 1.2;
+    int best = -1;
+    double best_score = -1e9;
+    uint8_t mi[256];
+    for (int i = 0; i < nm; i++) {
+        if (!vbe_mode_info(modes[i], mi)) continue;
+        uint16_t attr = rd16(mi);
+        if ((attr & 0x19) != 0x19) continue;            // supported, colour, graphics
+        int mw = rd16(mi + 18), mh = rd16(mi + 20), bpp = mi[25], model = mi[27];
+        if (mw < 320 || mh < 200) continue;
+        if (bpp == 8 ? model != 4 : model != 6) continue;
+        if (bpp != 8 && bpp != 15 && bpp != 16 && bpp != 24 && bpp != 32) continue;
+        bool lfb = (attr & 0x80) && ver >= 0x200 && rd32(mi + 40);
+        if (!lfb && (mi[2] & 5) != 5) continue;         // window A must be writable
+        double sc = mw / need_w < mh / need_h ? mw / need_w : mh / need_h;
+        double usage = (need_w * sc) * (need_h * sc) / ((double)mw * mh);
+        double score;
+        if (want_w && mw == want_w && mh == want_h) score = 100000;
+        else if (sc < 0.999) score = sc * 1000;         // would have to shrink
+        else score = 5000 + usage * 3000 - ((double)mw * mh) / (need_w * need_h) * 50;
+        static const int pref[] = {8, 16, 15, 32, 24};
+        for (int k = 0; k < 5; k++) if (pref[k] == bpp) score += 40 - k * 8;
+        if (lfb) score += 5;
+        if (score > best_score) { best_score = score; best = modes[i]; }
+    }
+    if (best < 0 || !vbe_mode_info(best, mi)) return false;
+
+    uint16_t attr = rd16(mi);
+    fb_w = rd16(mi + 18); fb_h = rd16(mi + 20);
+    int bpp = mi[25];
+    fb_bytes = (bpp + 7) / 8;
+    fb_indexed = bpp == 8;
+    fb_pitch = rd16(mi + 16);
+    if (!fb_indexed) {
+        r_len = mi[31]; r_pos = mi[32]; g_len = mi[33]; g_pos = mi[34]; b_len = mi[35]; b_pos = mi[36];
+        if (!r_len || !g_len || !b_len) {               // VBE 1.x leaves the masks out
+            if (bpp == 15) { r_pos = 10; r_len = 5; g_pos = 5; g_len = 5; b_pos = 0; b_len = 5; }
+            else if (bpp == 16) { r_pos = 11; r_len = 5; g_pos = 5; g_len = 6; b_pos = 0; b_len = 5; }
+            else { r_pos = 16; r_len = 8; g_pos = 8; g_len = 8; b_pos = 0; b_len = 8; }
+        }
+    }
+    bool lfb = (attr & 0x80) && ver >= 0x200 && rd32(mi + 40);
+    if (lfb) {
+        if (ver >= 0x300 && rd16(mi + 50)) fb_pitch = rd16(mi + 50);   // LinBytesPerScanLine
+        lfb_map.address = rd32(mi + 40);
+        lfb_map.size = (fb_pitch * fb_h + 0xFFF) & ~0xFFFu;
+        if (__dpmi_physical_address_mapping(&lfb_map) != 0) lfb = false;
+        else {
+            lfb_sel = __dpmi_allocate_ldt_descriptors(1);
+            if (lfb_sel < 0) lfb = false;
+            else {
+                __dpmi_set_segment_base_address(lfb_sel, lfb_map.address);
+                __dpmi_set_segment_limit(lfb_sel, (lfb_map.size - 1) | 0xFFF);
+            }
+        }
+    }
+    if (!lfb) {
+        if ((mi[2] & 5) != 5) return false;
+        win_gran = (uint32_t)rd16(mi + 4) * 1024;
+        win_size = (uint32_t)rd16(mi + 6) * 1024;
+        win_seg = rd16(mi + 8);
+        if (!win_gran || !win_size || !win_seg) return false;
+    }
+    memset(&r, 0, sizeof r);
+    r.x.ax = 0x4F02; r.x.bx = (unsigned short)(best | (lfb ? 0x4000 : 0));
+    __dpmi_int(0x10, &r);
+    if (r.x.ax != 0x004F) return false;
+    vmode = lfb ? V_LFB : V_BANKED;
+    cur_bank = -1;
+    printf("Video: VESA mode %Xh, %ux%u, %d bits, %s\n", best, fb_w, fb_h, bpp,
+           lfb ? "linear framebuffer" : "banked window");
+    return true;
+}
+
+static uint32_t native(uint32_t c) {
+    uint32_t r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+    return (r >> (8 - r_len)) << r_pos | (g >> (8 - g_len)) << g_pos | (b >> (8 - b_len)) << b_pos;
+}
+
+// Bytes to the screen at byte offset `off`: the linear framebuffer, or
+// the banked window a piece at a time.
+static void fb_write(uint32_t off, const void* src, uint32_t n) {
+    if (vmode == V_LFB) { movedata(_my_ds(), (unsigned)src, lfb_sel, off, n); return; }
+    const uint8_t* s = (const uint8_t*)src;
+    while (n) {
+        int bank = (int)(off / win_gran);
+        uint32_t in = off % win_gran;
+        uint32_t k = win_size - in;
+        if (k > n) k = n;
+        if (bank != cur_bank) {
+            __dpmi_regs r;
+            memset(&r, 0, sizeof r);
+            r.x.ax = 0x4F05; r.x.bx = 0; r.x.dx = (unsigned short)bank;
+            __dpmi_int(0x10, &r);
+            cur_bank = bank;
+        }
+        dosmemput(s, k, win_seg * 16 + in);
+        s += k; off += k; n -= k;
+    }
+}
+
+static void fb_clear() {
+    static uint8_t zero[4096];
+    for (uint32_t y = 0; y < fb_h; y++)
+        for (uint32_t x = 0; x < fb_pitch; x += sizeof zero)
+            fb_write(y * fb_pitch + x, zero, fb_pitch - x < sizeof zero ? fb_pitch - x : sizeof zero);
+}
+
+// The largest rectangle of the frame's shape (w : 1.2h) that fits.
+static void scaler_setup(int w, int h) {
+    uint64_t aw = (uint64_t)w * 5, ah = (uint64_t)h * 6;
+    dst_w = fb_w; dst_h = (uint32_t)(fb_w * ah / aw);
+    if (dst_h > fb_h) { dst_h = fb_h; dst_w = (uint32_t)(fb_h * aw / ah); }
+    if (dst_w > fb_w) dst_w = fb_w;
+    dst_x = (fb_w - dst_w) / 2; dst_y = (fb_h - dst_h) / 2;
+    free(xmap); free(line);
+    xmap = (uint16_t*)malloc(dst_w * sizeof(uint16_t));
+    line = (uint8_t*)malloc((size_t)dst_w * 4);
+    for (uint32_t x = 0; x < dst_w; x++) xmap[x] = (uint16_t)(x * (uint32_t)w / dst_w);
+    frame_w = w; frame_h = h;
+    fb_clear();
+}
+
+// The first frame picks the mode (so Doom's startup text stays readable).
+static void graphics_start(int w, int h) {
+    if (graphics_on) return;
+    if (!(w == 320 && h == 200 && !want_w) && vesa_init(w, h)) {
+        graphics_on = true;
+        scaler_setup(w, h);
+    } else {
+        if (w != 320 || h != 200)
+            printf("Video: no VESA mode for %dx%d; showing it in mode 13h\n", w, h);
+        vga_mode(0x13);
+        vmode = V_13H;
+        fb_w = 320; fb_h = 200; fb_pitch = 320; fb_bytes = 1; fb_indexed = true;
+        graphics_on = true;
+        if (w != 320 || h != 200) scaler_setup(w, h);
+    }
+}
+
+static void graphics_stop() {
+    if (!graphics_on) return;
+    graphics_on = false;
+    vga_mode(0x03);
+    vmode = V_NONE;
+    if (lfb_sel >= 0) { __dpmi_free_ldt_descriptor(lfb_sel); lfb_sel = -1; }
+    if (lfb_map.size) { __dpmi_free_physical_address_mapping(&lfb_map); lfb_map.size = 0; }
+}
+
+static void dac_load(const uint32_t* rgb) {
     outportb(0x3C8, 0);
     for (int i = 0; i < 256; i++) {
         uint32_t c = rgb[i];
@@ -95,28 +307,47 @@ extern "C" void bm_set_palette(const uint32_t* rgb) {
     }
 }
 
+extern "C" int SCREENWIDTH, SCREENHEIGHT;      // i_video.c: the frame's size
+
+extern "C" void bm_set_palette(const uint32_t* rgb) {
+    graphics_start(SCREENWIDTH, SCREENHEIGHT);      // setting the mode resets the DAC: first
+    memcpy(pal_rgb, rgb, sizeof pal_rgb);
+    if (fb_indexed) dac_load(rgb);
+    else for (int i = 0; i < 256; i++) pal_native[i] = native(rgb[i]);
+}
+
 static bool vsync;
-extern "C" void bm_draw(const uint8_t* pixels) {
-    graphics_start();
+extern "C" void bm_draw(const uint8_t* pixels, int w, int h) {
+    graphics_start(w, h);
     if (vsync) {                                        // -vsync: no tearing, at most 70 fps
         while (inportb(0x3DA) & 8) {}
         while (!(inportb(0x3DA) & 8)) {}
     }
-    dosmemput(pixels, BM_W * BM_H, 0xA0000);
-}
-
-// Mode 13h goes on with the first frame (DG_Init in doomgeneric_baremetal.c
-// is empty), so Doom's startup text stays readable on the DOS screen.
-static void graphics_start() {
-    if (graphics_on) return;
-    vga_mode(0x13);
-    graphics_on = true;
-}
-
-static void graphics_stop() {
-    if (!graphics_on) return;
-    graphics_on = false;
-    vga_mode(0x03);
+    if (vmode == V_13H && w == 320 && h == 200) {       // the classic path: a straight copy
+        dosmemput(pixels, 320 * 200, 0xA0000);
+        return;
+    }
+    if (w != frame_w || h != frame_h) scaler_setup(w, h);
+    int last = -1;
+    for (uint32_t y = 0; y < dst_h; y++) {
+        int sy = (int)(y * (uint32_t)h / dst_h);
+        if (sy != last) {                               // a new source row: convert it
+            last = sy;
+            const uint8_t* s = pixels + sy * w;
+            switch (fb_bytes) {
+            case 1: for (uint32_t x = 0; x < dst_w; x++) line[x] = s[xmap[x]]; break;
+            case 2: for (uint32_t x = 0; x < dst_w; x++) ((uint16_t*)line)[x] = (uint16_t)pal_native[s[xmap[x]]]; break;
+            case 4: for (uint32_t x = 0; x < dst_w; x++) ((uint32_t*)line)[x] = pal_native[s[xmap[x]]]; break;
+            default:
+                for (uint32_t x = 0; x < dst_w; x++) {
+                    uint32_t v = pal_native[s[xmap[x]]];
+                    line[x * 3] = (uint8_t)v; line[x * 3 + 1] = (uint8_t)(v >> 8); line[x * 3 + 2] = (uint8_t)(v >> 16);
+                }
+            }
+        }
+        if (vmode == V_13H) dosmemput(line, dst_w, 0xA0000 + (dst_y + y) * 320 + dst_x);
+        else fb_write((dst_y + y) * fb_pitch + dst_x * fb_bytes, line, dst_w * fb_bytes);
+    }
 }
 
 // ---------------------------------------------------------------- keyboard
@@ -590,6 +821,11 @@ int main(int argc, char** argv) {
     printf("Doom for MS-DOS (doomgeneric, DJGPP)\n");
 
     vsync = has_arg(argc, argv, "-vsync");
+    // The VESA mode for -hires / -widescreen: -vesa WxH or DOOMVID=WxH
+    // (otherwise the best fit from the card's list).
+    if (const char* e = getenv("DOOMVID")) sscanf(e, "%dx%d", &want_w, &want_h);
+    for (int i = 1; i + 1 < argc; i++)
+        if (!strcasecmp(argv[i], "-vesa")) sscanf(argv[i + 1], "%dx%d", &want_w, &want_h);
     for (int i = 1; i + 1 < argc; i++)
         if (!strcasecmp(argv[i], "-net")) {
             unsigned long a = strtoul(argv[i + 1], nullptr, 10);

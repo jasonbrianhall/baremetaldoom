@@ -510,6 +510,21 @@ static default_t	doom_defaults_list[] =
     CONFIG_VARIABLE_INT(screenblocks),
 
     //!
+    // Render at this many times Doom's resolution: 1 (320x200, the
+    // default), 2 (640x400) or 3 (960x600). -hires N overrides it.
+    //
+
+    CONFIG_VARIABLE_INT(screen_scale),
+
+    //!
+    // If non-zero, widescreen (16:9): the view shows more at the sides,
+    // the status bar, menus and other screens are centered. -widescreen
+    // and -nowidescreen override it.
+    //
+
+    CONFIG_VARIABLE_INT(screen_widescreen),
+
+    //!
     // @game strife
     //
     // Screen size, range 3-11.

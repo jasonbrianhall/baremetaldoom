@@ -59,6 +59,7 @@ int			centery;
 fixed_t			centerxfrac;
 fixed_t			centeryfrac;
 fixed_t			projection;
+int			nonwideviewwidth;     // the view's 4:3 part, in pixels
 
 // just for profiling purposes
 int			framecount;	
@@ -95,7 +96,7 @@ int			viewangletox[FINEANGLES/2];
 // The xtoviewangleangle[] table maps a screen pixel
 // to the lowest viewangle that maps back to x ranges
 // from clipangle to -clipangle.
-angle_t			xtoviewangle[SCREENWIDTH+1];
+angle_t			xtoviewangle[MAXWIDTH+1];
 
 lighttable_t*		scalelight[LIGHTLEVELS][MAXLIGHTSCALE];
 lighttable_t*		scalelightfixed[MAXLIGHTSCALE];
@@ -549,8 +550,10 @@ void R_InitTextureMapping (void)
     //  after the view angle.
     //
     // Calc focallength
-    //  so FIELDOFVIEW angles covers SCREENWIDTH.
-    focallength = FixedDiv (centerxfrac,
+    //  so FIELDOFVIEW angles covers the 4:3 part of the view (projection,
+    //  R_ExecuteSetViewSize). A widescreen view goes on beyond it, to
+    //  about 53 degrees each side.
+    focallength = FixedDiv (projection,
 			    finetangent[FINEANGLES/4+FIELDOFVIEW/2] );
 	
     for (i=0 ; i<FINEANGLES/2 ; i++)
@@ -622,7 +625,7 @@ void R_InitLightTables (void)
 	startmap = ((LIGHTLEVELS-1-i)*2)*NUMCOLORMAPS/LIGHTLEVELS;
 	for (j=0 ; j<MAXLIGHTZ ; j++)
 	{
-	    scale = FixedDiv ((SCREENWIDTH/2*FRACUNIT), (j+1)<<LIGHTZSHIFT);
+	    scale = FixedDiv ((ORIGWIDTH/2*FRACUNIT), (j+1)<<LIGHTZSHIFT);
 	    scale >>= LIGHTSCALESHIFT;
 	    level = startmap - scale/DISTMAP;
 	    
@@ -684,7 +687,7 @@ static void R_SetLookOffset (int offset)
     {
 	dy = ((i-centery)<<FRACBITS)+FRACUNIT/2;
 	dy = abs(dy);
-	yslope[i] = FixedDiv ( (viewwidth<<detailshift)/2*FRACUNIT, dy);
+	yslope[i] = FixedDiv ( nonwideviewwidth/2*FRACUNIT, dy);
     }
 }
 
@@ -700,10 +703,11 @@ static void R_DrawCrosshair (void)
     const byte	white = 4;      // PLAYPAL: 255,255,255
 
     if (!P_LookActive (viewplayer) || viewplayer->playerstate == PST_DEAD
-     || cx < 4 || cy < 4)
+     || cx < 4*HIRES || cy < 4*HIRES)
 	return;
 
-    for (i=2 ; i<=4 ; i++)
+    // Arms 2-4 pixels at 320x200, scaled up with the resolution.
+    for (i=2*HIRES ; i<=4*HIRES ; i++)
     {
 	ylookup[cy][columnofs[cx-i]] = white;
 	ylookup[cy][columnofs[cx+i]] = white;
@@ -726,15 +730,25 @@ void R_ExecuteSetViewSize (void)
 
     setsizeneeded = false;
 
+    // Sizes in ORIGWIDTH terms, times HIRES. Full-size views (10 and 11)
+    // take the whole width, widescreen included; smaller ones are 4:3.
     if (setblocks == 11)
     {
 	scaledviewwidth = SCREENWIDTH;
+	nonwideviewwidth = NONWIDEWIDTH;
 	viewheight = SCREENHEIGHT;
+    }
+    else if (setblocks == 10)
+    {
+	scaledviewwidth = SCREENWIDTH;
+	nonwideviewwidth = NONWIDEWIDTH;
+	viewheight = (ORIGHEIGHT - 32) * HIRES;
     }
     else
     {
-	scaledviewwidth = setblocks*32;
-	viewheight = (setblocks*168/10)&~7;
+	scaledviewwidth = setblocks*32*HIRES;
+	nonwideviewwidth = scaledviewwidth;
+	viewheight = ((setblocks*168/10)&~7) * HIRES;
     }
     
     detailshift = setdetail;
@@ -744,7 +758,9 @@ void R_ExecuteSetViewSize (void)
     centerx = viewwidth/2;
     centerxfrac = centerx<<FRACBITS;
     centeryfrac = centery<<FRACBITS;
-    projection = centerxfrac;
+    // The 4:3 part's half width: Doom's 90 degree field of view and the
+    // vertical scale come from it, so widescreen only adds at the sides.
+    projection = ((nonwideviewwidth>>detailshift)/2)<<FRACBITS;
 
     if (!detailshift)
     {
@@ -766,8 +782,8 @@ void R_ExecuteSetViewSize (void)
     R_InitTextureMapping ();
     
     // psprite scales
-    pspritescale = FRACUNIT*viewwidth/SCREENWIDTH;
-    pspriteiscale = FRACUNIT*SCREENWIDTH/viewwidth;
+    pspritescale = FRACUNIT*(nonwideviewwidth>>detailshift)/ORIGWIDTH;
+    pspriteiscale = FRACUNIT*ORIGWIDTH/(nonwideviewwidth>>detailshift);
     
     // thing clipping
     for (i=0 ; i<viewwidth ; i++)
@@ -789,7 +805,9 @@ void R_ExecuteSetViewSize (void)
 	startmap = ((LIGHTLEVELS-1-i)*2)*NUMCOLORMAPS/LIGHTLEVELS;
 	for (j=0 ; j<MAXLIGHTSCALE ; j++)
 	{
-	    level = startmap - j*SCREENWIDTH/(viewwidth<<detailshift)/DISTMAP;
+	    // j comes from a scale divided by HIRES (LIGHTSCALE), so the light
+	    // matches 320x200's whatever the resolution.
+	    level = startmap - j*NONWIDEWIDTH/nonwideviewwidth/DISTMAP;
 	    
 	    if (level < 0)
 		level = 0;
@@ -878,9 +896,10 @@ void R_SetupFrame (player_t* player)
 
     viewz = player->viewz;
 
-    // Free look: lookdir is 1/8 px of shear at 320 wide; scale to the view.
+    // Free look: lookdir is 1/8 px of shear at 320 wide; scale to the view
+    // (its 4:3 part: the vertical scale comes from that).
     {
-	int offset = (player->lookdir * scaledviewwidth) / (SCREENWIDTH*8);
+	int offset = (player->lookdir * nonwideviewwidth) / (ORIGWIDTH*8);
 	if (offset != lookoffset)
 	    R_SetLookOffset (offset);
     }

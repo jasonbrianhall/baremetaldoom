@@ -195,26 +195,34 @@ static void fb_clear() {
     for (uint32_t y = 0; y < fb_h; y++) memset(fb + y * fb_pitch, 0, (size_t)fb_w * fb_bytes);
 }
 
-// Doom's 320x200 picture, scaled up to the largest 4:3 rectangle that fits
-// (the shape of the monitors it was drawn for), centred, black around it.
+// Doom's picture (320x200, or wider or larger: bm_draw), scaled up to the
+// largest rectangle of its shape that fits -- 4:3 or 16:9, its pixels
+// being 1.2 times taller than wide, as on the monitors Doom was drawn
+// for -- centred, black around it.
 static uint32_t pal_native[256];
 static uint16_t* xmap;                  // screen column -> Doom column
 static uint8_t* line;                   // one screen row, in the screen's format
 static uint32_t dst_x, dst_y, dst_w, dst_h;
+static int src_w, src_h;                // the frame the mapping is for
 static bool scaler_ready;
 
 static void scaler_init() {
-    dst_w = fb_w; dst_h = fb_w * 3 / 4;
-    if (dst_h > fb_h) { dst_h = fb_h; dst_w = fb_h * 4 / 3; }
+    xmap = (uint16_t*)malloc(fb_w * sizeof(uint16_t));
+    line = (uint8_t*)malloc((size_t)fb_w * 4);
+    if (!xmap || !line) return;
+    scaler_ready = true;
+}
+
+static void scaler_setup(int w, int h) {
+    uint64_t aw = (uint64_t)w * 5, ah = (uint64_t)h * 6;    // w : 1.2h
+    dst_w = fb_w; dst_h = (uint32_t)(fb_w * ah / aw);
+    if (dst_h > fb_h) { dst_h = fb_h; dst_w = (uint32_t)(fb_h * aw / ah); }
     if (dst_w > fb_w) dst_w = fb_w;
     dst_x = (fb_w - dst_w) / 2; dst_y = (fb_h - dst_h) / 2;
-    xmap = (uint16_t*)malloc(dst_w * sizeof(uint16_t));
-    line = (uint8_t*)malloc((size_t)dst_w * 4);
-    if (!xmap || !line) return;
-    for (uint32_t x = 0; x < dst_w; x++) xmap[x] = (uint16_t)(x * BM_W / dst_w);
+    for (uint32_t x = 0; x < dst_w; x++) xmap[x] = (uint16_t)(x * (uint32_t)w / dst_w);
+    src_w = w; src_h = h;
     fb_clear();
-    scaler_ready = true;
-    printf("Video: Doom's %dx%d scaled to %ux%u at (%u,%u)\n", BM_W, BM_H, dst_w, dst_h, dst_x, dst_y);
+    printf("Video: Doom's %dx%d scaled to %ux%u at (%u,%u)\n", w, h, dst_w, dst_h, dst_x, dst_y);
 }
 
 extern "C" void bm_set_palette(const uint32_t* rgb) {
@@ -224,14 +232,15 @@ extern "C" void bm_set_palette(const uint32_t* rgb) {
     }
 }
 
-extern "C" void bm_draw(const uint8_t* src) {
-    if (!scaler_ready) return;
+extern "C" void bm_draw(const uint8_t* src, int w, int h) {
+    if (!scaler_ready || w <= 0 || h <= 0) return;
+    if (w != src_w || h != src_h) scaler_setup(w, h);
     int last = -1;
     for (uint32_t y = 0; y < dst_h; y++) {
-        int sy = (int)(y * BM_H / dst_h);
+        int sy = (int)(y * (uint32_t)h / dst_h);
         if (sy != last) {                                  // a new source row: convert it
             last = sy;
-            const uint8_t* s = src + sy * BM_W;
+            const uint8_t* s = src + sy * w;
             switch (fb_bytes) {
             case 1: for (uint32_t x = 0; x < dst_w; x++) line[x] = s[xmap[x]]; break;
             case 2: for (uint32_t x = 0; x < dst_w; x++) ((uint16_t*)line)[x] = (uint16_t)pal_native[s[xmap[x]]]; break;

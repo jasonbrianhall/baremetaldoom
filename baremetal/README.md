@@ -32,6 +32,8 @@ menuentry "Doom" {
 
 **Controls:** WASD move and strafe (the arrows move and turn too), Ctrl or the left button fires, Space opens doors, Alt strafes, Shift runs. Keys are set in `default.cfg` (`key_up`, `key_strafeleft`, ... as DOS scan codes). Ctrl+Alt+Del restarts. The mouse looks around Quake style (free look, with a crosshair and no autoaim); `mouse_freelook 0` in the config file brings back mouse-forward and autoaim, `mouse_invert 1` inverts it.
 
+**Video:** 320x200 by default, scaled to fit. `-widescreen` shows more at the sides (16:9, fills a widescreen monitor) and `-hires 2` or `-hires 3` renders at 2x or 3x; `screen_widescreen` and `screen_scale` in `default.cfg` do the same.
+
 **Boot options** (GRUB's `multiboot` line or `ARGS=`): `audio=hda|hdmi|analog|ac97|sb|off`, `sb=220,1`, `latency=MS`, `usb=off`. Anything else is passed to Doom (`-warp 1 1`, `-skill 4`, `-file x.wad`, `-mb 32`...). Boot messages go to COM1.
 
 `tools/fat32_test.sh [file.wad]` tests the FAT32 driver on the host.
