@@ -1786,6 +1786,7 @@ static void LoadDefaultCollection(default_collection_t *collection)
     default_t *def;
     char defname[80];
     char strparm[100];
+    char line[256];
 
     // read the file in, overriding any set defaults
     f = fopen(collection->filename, "r");
@@ -1798,9 +1799,27 @@ static void LoadDefaultCollection(default_collection_t *collection)
         return;
     }
 
-    while (!feof(f))
+    while (fgets(line, sizeof(line), f) != NULL)
     {
-        if (fscanf(f, "%79s %99[^\n]\n", defname, strparm) != 2)
+        // "name value": the name, then the rest of the line. Split by
+        // hand: the bare-metal C library has no fscanf or %[.
+        char *p = line, *q;
+        size_t n;
+
+        while (*p == ' ' || *p == '\t')
+            p++;
+        for (n = 0; *p && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n'; p++)
+            if (n < sizeof(defname) - 1)
+                defname[n++] = *p;
+        defname[n] = '\0';
+        while (*p == ' ' || *p == '\t')
+            p++;
+        M_StringCopy(strparm, p, sizeof(strparm));
+        for (q = strparm + strlen(strparm); q > strparm && (q[-1] == '\r' || q[-1] == '\n'
+                                                       || q[-1] == ' ' || q[-1] == '\t'); )
+            *--q = '\0';
+
+        if (defname[0] == '\0' || strparm[0] == '\0')
         {
             // This line doesn't match
 
