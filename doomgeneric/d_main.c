@@ -755,6 +755,23 @@ void D_IdentifyVersion(void)
         }
     }
 
+    // An IWAD under another game's name (DOOM2.WAD copied to DOOM.WAD,
+    // say): go by what's in it, so the right maps and music are used.
+
+    if (gamemission == doom && W_CheckNumForName("E1M1") < 0
+     && W_CheckNumForName("MAP01") >= 0)
+    {
+        printf("This IWAD has MAP01 but no E1M1: playing it as Doom II.\n");
+        gamemission = doom2;
+    }
+    else if ((gamemission == doom2 || gamemission == pack_tnt
+              || gamemission == pack_plut)
+          && W_CheckNumForName("MAP01") < 0 && W_CheckNumForName("E1M1") >= 0)
+    {
+        printf("This IWAD has E1M1 but no MAP01: playing it as Doom.\n");
+        gamemission = doom;
+    }
+
     // Make sure gamemode is set up correctly
 
     if (logical_gamemission == doom)
