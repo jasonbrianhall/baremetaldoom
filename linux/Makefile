@@ -1,6 +1,6 @@
 # Doom for Linux (SDL2), with IPX and serial net games built in.
 #
-#   make            ./doom
+#   make            ./doom, ./ipxsetup, ./sersetup
 #   make run        run it (WAD=path/to/doom.wad, ARGS="-warp 1 1")
 #   make install    to $(PREFIX)/games (PREFIX=/usr/local)
 #   make clean
@@ -12,7 +12,9 @@
 # unchanged, and so are the port glue (doomgeneric_baremetal.c,
 # i_sound_baremetal.c), the sound mixer and the OPL3 General MIDI synth from
 # ../baremetal. linux_platform.cpp is the machine underneath (SDL2 video,
-# keyboard, mouse, sound); net_*.cpp are IPXSETUP and SERSETUP, built in.
+# keyboard, mouse, sound); net_*.cpp are IPXSETUP and SERSETUP, built into
+# the game (./doom -ipx ...) and as programs of their own that start it, as
+# on DOS (./ipxsetup -nodes 3 ...: setup_main.cpp).
 VERSION = 20261028
 
 DOOM    := ../doomgeneric
@@ -45,7 +47,8 @@ DOOM_SRC := dummy am_map doomdef doomstat dstrings d_event d_items d_iwad d_loop
             mus2mid
 C_SRCS   := $(addprefix $(DOOM)/,$(addsuffix .c,$(DOOM_SRC))) \
             $(BM)/doomgeneric_baremetal.c $(BM)/i_sound_baremetal.c $(BM)/opl/gmsynth.c $(BM)/opl/gmtables.c
-CXX_SRCS := linux_platform.cpp net_linux.cpp net_ipx.cpp net_serial.cpp \
+NET_SRCS := net_common.cpp net_ipx.cpp net_serial.cpp
+CXX_SRCS := linux_platform.cpp net_linux.cpp $(NET_SRCS) \
             $(BM)/mixer.cpp $(BM)/music.cpp $(BM)/opl/opl.cpp $(BM)/opl/dbopl.cpp
 
 OBJS := $(patsubst %.c,$(BUILD)/c/%.o,$(notdir $(C_SRCS))) $(patsubst %.cpp,$(BUILD)/cxx/%.o,$(notdir $(CXX_SRCS)))
@@ -54,10 +57,18 @@ vpath %.cpp . $(BM) $(BM)/opl
 
 HDRS := $(wildcard $(DOOM)/*.h) $(wildcard $(BM)/*.h) $(wildcard $(BM)/*.hpp) $(wildcard $(BM)/opl/*.h) net_linux.h
 
-all: $(TARGET)
+NET_OBJS := $(patsubst %.cpp,$(BUILD)/cxx/%.o,$(NET_SRCS))
+
+all: $(TARGET) ipxsetup sersetup
 
 $(TARGET): $(OBJS)
 	$(CXX) $(LDFLAGS) $(OBJS) $(LDLIBS) -o $@
+
+# The DOS way: find the players, then start ./doom as their driver.
+ipxsetup: setup_main.cpp setup_ui.cpp setup_ui.h $(NET_OBJS) net_linux.h Makefile
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) setup_main.cpp setup_ui.cpp $(NET_OBJS) -o $@
+sersetup: setup_main.cpp $(NET_OBJS) net_linux.h Makefile
+	$(CXX) $(CXXFLAGS) -DSETUP_SERIAL $(LDFLAGS) setup_main.cpp $(NET_OBJS) -o $@
 
 $(BUILD)/c/%.o: %.c $(HDRS) Makefile
 	@mkdir -p $(dir $@)
@@ -73,10 +84,12 @@ run: $(TARGET)
 	./$(TARGET) $(if $(WAD),-iwad $(WAD)) $(ARGS)
 
 PREFIX ?= /usr/local
-install: $(TARGET)
+install: all
 	install -D -m 755 $(TARGET) $(DESTDIR)$(PREFIX)/games/baremetaldoom
+	install -D -m 755 ipxsetup $(DESTDIR)$(PREFIX)/games/baremetaldoom-ipxsetup
+	install -D -m 755 sersetup $(DESTDIR)$(PREFIX)/games/baremetaldoom-sersetup
 
 clean:
-	rm -rf $(BUILD) $(TARGET)
+	rm -rf $(BUILD) $(TARGET) ipxsetup sersetup
 
 .PHONY: all run install clean

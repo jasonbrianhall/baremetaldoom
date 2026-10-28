@@ -95,6 +95,7 @@ struct Link {
     virtual void send(const uint8_t* pkt, int len) = 0;
     virtual int recv(uint8_t* buf, int max) = 0;     // bytes, or 0: none waiting
     virtual void service() {}                       // between packets (the built-in server)
+    virtual int fds(int* out) { out[0] = fd; return fd >= 0; }
 };
 
 static bool udp_addr(const char* host, uint16_t port, sockaddr_in* sa) {
@@ -240,7 +241,8 @@ struct TunnelClient : Link {
             ::send(fd, reg, sizeof reg, 0);
             uint32_t t0 = ms_now();
             while (ms_now() - t0 < 1000 && !net_aborted()) {
-                wait_fd(fd, 100);
+                net_tick(-1, 0);
+                wait_fd(fd, 50);
                 ssize_t n = ::recv(fd, in, sizeof in, 0);
                 if (n >= IPX_HDR && be16(in + H_DSOCK) == 2 && be16(in + H_SSOCK) == 2) {
                     memcpy(net, in + H_DNET, 4);
@@ -408,6 +410,7 @@ struct ServerAndClient : TunnelClient {
         return false;
     }
     void service() override { srv->pump(); }
+    int fds(int* out) override { int n = TunnelClient::fds(out); out[n++] = srv->fd; return n; }
     void send(const uint8_t* pkt, int len) override { TunnelClient::send(pkt, len); srv->pump(); }
     int recv(uint8_t* buf, int max) override { srv->pump(); return TunnelClient::recv(buf, max); }
 };
@@ -627,6 +630,7 @@ static bool look_for_nodes(doomcom_t* dc, int numnetnodes) {
     time_t oldsec = -1;
 
     for (;;) {
+        net_tick(dc->numnodes, numnetnodes);
         if (net_aborted()) return false;
         while (get_packet(dc)) {
             setupdata_t* dest = dc->remotenode == -1 ? &nodesetup[dc->numnodes] : &nodesetup[dc->remotenode];
@@ -701,8 +705,8 @@ static uint16_t port_arg(int argc, char** argv, const char* name, uint16_t def) 
 bool ipx_setup(int argc, char** argv, doomcom_t* dc) {
     printf("-----------------------------\n"
            "DOOM NETWORK DEVICE DRIVER\n"
-           "IPXSETUP v1.22, built in\n"
-           "-----------------------------\n");
+           "IPXSETUP v1.22%s\n"
+           "-----------------------------\n", net_driver_note);
     int numnetnodes = 2;
     if (const char* v = net_arg_value(argc, argv, "-nodes")) numnetnodes = atoi(v);
     if (numnetnodes < 1 || numnetnodes > MAXNETNODES) {
@@ -771,3 +775,5 @@ void ipx_shutdown() {
     // A last chance for the server to pass on our goodbye packets.
     if (link_) { link_->service(); delete link_; link_ = nullptr; }
 }
+
+int ipx_fds(int* fds) { return link_ ? link_->fds(fds) : 0; }

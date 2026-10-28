@@ -1,21 +1,30 @@
 # Doom for Linux
 
-The same Doom as the bare-metal and DOS builds (free look, widescreen, OPL3 music), in an SDL2 window, with IPXSETUP and SERSETUP built in.
+The same Doom as the bare-metal and DOS builds (free look, widescreen, OPL3 music), in an SDL2 window, with IPXSETUP and SERSETUP: built into the game, and as `./ipxsetup` / `./sersetup` that start it, as on DOS.
 
 ```
 sudo apt install build-essential libsdl2-dev
-make
+make                        # ./doom, ./ipxsetup, ./sersetup
 ./doom                      # finds doom2.wad, doom.wad, doom1.wad, freedoom*.wad
 ./doom -iwad path/to/doom.wad -warp 1 1
+./ipxsetup                  # a net game: the setup menu
 ```
 
 It looks for the IWAD in the current directory, `$DOOMWADDIR`, `$DOOMWADPATH`, `~/.local/share/games/doom` and `/usr/share/games/doom`. `default.cfg` and saved games go in the current directory, as on DOS.
 
-**Controls** are the DOS build's: WASD, Ctrl or the left button fires, Space opens, Alt strafes, Shift runs, the mouse looks around. Alt+Enter toggles fullscreen (`-fullscreen` to start that way). Ctrl+F10 lets go of the mouse, as in DOSBox; Ctrl+F10 again or a click in the window takes it back. `-width W -height H` sets the window size, `-novsync`, `-latency MS` for the sound.
+**Controls** are the DOS build's: WASD, Ctrl or the left button fires, Space opens, Alt strafes, Shift runs, the mouse looks around. **Fullscreen:** the key under Esc (`` ` ``), Alt+Enter, or Options → FULLSCREEN. It's remembered in `default.cfg` (`fullscreen`; `key_fullscreen` to use another key); `-fullscreen` / `-window` for one run. Ctrl+F10 lets go of the mouse, as in DOSBox; Ctrl+F10 again or a click in the window takes it back. `-width W -height H` sets the window size, `-novsync`, `-latency MS` for the sound.
 
 ## Net games
 
-The drivers speak the original wire protocols, so a Linux machine can play against DOS machines running Doom 1.9's `IPXSETUP.EXE` / `SERSETUP.EXE` and the original `DOOM.EXE` (or `../msdos`'s doom.exe), real or in DOSBox. Everyone needs the same IWAD; game options (`-deathmatch`, `-altdeath`, `-warp`, `-skill`, `-nomonsters`...) go on the command line as usual. `-nodes N` is the number of players (default 2). Ctrl+C gives up while looking for players.
+### ipxsetup
+
+Run `./ipxsetup` in a terminal and it shows a setup menu, like DOS's SETUP / DM.EXE: the game (from the IWADs it finds), players, cooperative or deathmatch, the starting map, skill, monster options, a time limit, and how to connect. Up/Down choose, Left/Right change, Enter types a value or starts. The choices are kept in `ipxsetup.cfg`. Then it shows IPXSETUP's box (*Looking for 2 players… Press ESC to abort*), starts `./doom` when everyone's found, stays as its network driver, and comes back to the menu when the game ends.
+
+With options it goes straight to the search, as IPXSETUP.EXE: `./ipxsetup -nodes 3 -deathmatch -warp 1 1` (LAN), or with `-ipxserver`, `-ipxnet`, `-ipxeth` as below. Options that aren't about the net game (`-nosound`, `-file x.wad`) go to the game, menu or not. `-text` for plain lines instead of the box; `-exec PROGRAM` to start another game binary. `./sersetup` does the same for serial (`-com1`..`-com4` = `/dev/ttyS0`..`3`, or `-serial ...`), in plain text like SERSETUP.EXE.
+
+### Options
+
+The same options work on `./doom` directly (the driver built in) and on `./ipxsetup` / `./sersetup`. The drivers speak the original wire protocols, so a Linux machine can play against DOS machines running Doom 1.9's `IPXSETUP.EXE` / `SERSETUP.EXE` and the original `DOOM.EXE` (or `../msdos`'s doom.exe), real or in DOSBox. Everyone needs the same IWAD; game options (`-deathmatch`, `-altdeath`, `-warp`, `-skill`, `-nomonsters`...) go on the command line as usual. `-nodes N` is the number of players (default 2). Ctrl+C (Esc in ipxsetup's box) gives up while looking for players.
 
 | | |
 |---|---|
@@ -32,7 +41,7 @@ Examples:
 
 ```
 # three Linux machines on a LAN
-./doom -ipx -nodes 3 -deathmatch -warp 1 1
+./ipxsetup -nodes 3 -deathmatch -warp 1 1      # or: ./doom -ipx -nodes 3 ...
 
 # Linux hosts, a DOSBox player joins
 ./doom -ipxserver 21300 -nodes 2 -deathmatch

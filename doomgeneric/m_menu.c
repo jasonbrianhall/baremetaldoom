@@ -60,6 +60,9 @@
 #ifdef BAREMETAL
 #include "bm_audio.h"   // ../baremetal: the sound cards the kernel found
 #endif
+#ifdef BM_HOSTED
+#include "bm.h"         // ../baremetal: in a window (Linux): fullscreen or not
+#endif
 
 
 extern patch_t*		hu_font[HU_FONTSIZE];
@@ -192,6 +195,9 @@ void M_ChangeSensitivity(int choice);
 void M_SfxVol(int choice);
 #ifdef BAREMETAL
 void M_SoundCard(int choice);
+#endif
+#ifdef BM_HOSTED
+void M_Fullscreen(int choice);
 #endif
 void M_MusicVol(int choice);
 void M_ChangeDetail(int choice);
@@ -344,6 +350,9 @@ enum
     mousesens,
     option_empty2,
     soundvol,
+#ifdef BM_HOSTED
+    opt_fullscreen,     // in a window: fullscreen on/off (text, no graphic)
+#endif
     opt_end
 } options_e;
 
@@ -356,7 +365,10 @@ menuitem_t OptionsMenu[]=
     {-1,"",0,'\0'},
     {2,"M_MSENS",	M_ChangeSensitivity,'m'},
     {-1,"",0,'\0'},
-    {1,"M_SVOL",	M_Sound,'s'}
+    {1,"M_SVOL",	M_Sound,'s'},
+#ifdef BM_HOSTED
+    {2,"",		M_Fullscreen,'f'},
+#endif
 };
 
 menu_t  OptionsDef =
@@ -365,7 +377,11 @@ menu_t  OptionsDef =
     &MainDef,
     OptionsMenu,
     M_DrawOptions,
+#ifdef BM_HOSTED
+    60,33,              // a line more (fullscreen): up a little, off the status bar
+#else
     60,37,
+#endif
     0
 };
 
@@ -1036,7 +1052,20 @@ void M_DrawOptions(void)
 
     M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(scrnsize+1),
 		 9,screenSize);
+
+#ifdef BM_HOSTED
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT * opt_fullscreen + 3,
+                bm_fullscreen() ? "FULLSCREEN: ON" : "FULLSCREEN: OFF");
+#endif
 }
+
+#ifdef BM_HOSTED
+// Left, Right or Enter: switch.
+void M_Fullscreen(int choice)
+{
+    bm_set_fullscreen(!bm_fullscreen());
+}
+#endif
 
 void M_Options(int choice)
 {

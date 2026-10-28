@@ -524,6 +524,13 @@ static default_t	doom_defaults_list[] =
 
     CONFIG_VARIABLE_INT(screen_widescreen),
 
+#ifdef BM_HOSTED
+    // In a window (the Linux build): start fullscreen, and the key that
+    // switches (the one under Esc by default).
+    CONFIG_VARIABLE_INT(fullscreen),
+    CONFIG_VARIABLE_KEY(key_fullscreen),
+#endif
+
     //!
     // @game strife
     //

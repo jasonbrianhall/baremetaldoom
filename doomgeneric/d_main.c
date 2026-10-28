@@ -367,6 +367,13 @@ void D_BindVariables(void)
     M_BindVariable("screenblocks",           &screenblocks);
     M_BindVariable("screen_scale",           &screen_scale);
     M_BindVariable("screen_widescreen",      &screen_widescreen);
+#ifdef BM_HOSTED
+    {
+        extern int video_fullscreen, key_fullscreen;   // the platform's (linux_platform.cpp)
+        M_BindVariable("fullscreen",         &video_fullscreen);
+        M_BindVariable("key_fullscreen",     &key_fullscreen);
+    }
+#endif
     M_BindVariable("detaillevel",            &detailLevel);
     M_BindVariable("snd_channels",           &snd_channels);
     M_BindVariable("vanilla_savegame_limit", &vanilla_savegame_limit);

@@ -53,6 +53,14 @@ static SDL_Texture* tex;
 static int tex_w, tex_h;
 static uint32_t pal[256];
 static bool fullscreen, vsync, have_mouse;
+static int fullscreen_arg = -1;             // -fullscreen 1, -window 0, else the config's
+
+// default.cfg (d_main.c binds them): start fullscreen, and the key that
+// switches (Doom's key code; the one under Esc, which Doom doesn't use).
+extern "C" {
+int video_fullscreen = 0;
+int key_fullscreen = '`';
+}
 static int start_w, start_h;                // -width / -height
 static char title[128] = "Doom";
 
@@ -89,6 +97,7 @@ static void graphics_start(int w, int h) {
         ww = sw * k; wh = sh * k;
     }
     Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+    fullscreen = fullscreen_arg >= 0 ? fullscreen_arg != 0 : video_fullscreen != 0;
     if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
     win = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, ww, wh, flags);
     if (!win) { fprintf(stderr, "Video: can't open a window: %s\n", SDL_GetError()); exit(1); }
@@ -357,10 +366,28 @@ extern "C" int bm_audio_select(int i) {
 }
 
 // ---------------------------------------------------------------- events
-static void toggle_fullscreen() {
-    if (!win) return;
-    fullscreen = !fullscreen;
-    SDL_SetWindowFullscreen(win, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+// Alt+Enter, the fullscreen key, or Options -> FULLSCREEN. Remembered in
+// default.cfg for next time.
+extern "C" void bm_set_fullscreen(int on) {
+    fullscreen = on != 0;
+    video_fullscreen = fullscreen;
+    if (win) SDL_SetWindowFullscreen(win, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+}
+extern "C" int bm_fullscreen(void) { return fullscreen; }
+static void toggle_fullscreen() { bm_set_fullscreen(!fullscreen); }
+
+// The fullscreen key, unless Doom wants it as a character right now (typing
+// a chat message or a saved game's name).
+extern "C" {
+extern unsigned int menuactive, chat_on;     // boolean (doomtype.h)
+}
+static bool fullscreen_key(bool down, int k) {
+    static bool eaten;
+    if (!down && eaten && k == key_fullscreen) { eaten = false; return true; }
+    if (!down || !k || k != key_fullscreen || menuactive || chat_on) return false;
+    toggle_fullscreen();
+    eaten = true;
+    return true;
 }
 
 extern "C" void bm_poll(void) {
@@ -391,7 +418,10 @@ extern "C" void bm_poll(void) {
             if (sc == SDL_SCANCODE_PAUSE) { if (down) { key_post(true, KEY_PAUSE); key_post(false, KEY_PAUSE); } break; }
             bool ext;
             int code = set1(sc, &ext);
-            if (code) key_post(down, doom_key(ext, (uint8_t)code));
+            if (code) {
+                int k = doom_key(ext, (uint8_t)code);
+                if (!fullscreen_key(down, k)) key_post(down, k);
+            }
             break;
         }
         case SDL_MOUSEMOTION:
@@ -532,8 +562,8 @@ int main(int argc, char** argv) {
     t_start = SDL_GetPerformanceCounter();
     atexit(shutdown);
 
-    fullscreen = has_arg(argc, argv, "-fullscreen");
-    if (has_arg(argc, argv, "-window")) fullscreen = false;
+    if (has_arg(argc, argv, "-fullscreen")) fullscreen_arg = 1;
+    if (has_arg(argc, argv, "-window")) fullscreen_arg = 0;
     vsync = !has_arg(argc, argv, "-novsync");
     for (int i = 1; i + 1 < argc; i++) {
         if (!strcasecmp(argv[i], "-width")) start_w = atoi(argv[i + 1]);

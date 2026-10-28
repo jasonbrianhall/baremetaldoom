@@ -363,8 +363,8 @@ bool ser_wanted(int argc, char** argv) { return net_arg(argc, argv, "-serial") !
 
 bool ser_setup(int argc, char** argv, doomcom_t* dc) {
     printf("---------------------------------\n"
-           "DOOM SERIAL DEVICE DRIVER v1.4, built in\n"
-           "---------------------------------\n");
+           "DOOM SERIAL DEVICE DRIVER v1.4%s\n"
+           "---------------------------------\n", net_driver_note);
     const char* where = net_arg_value(argc, argv, "-serial");
     if (!where) { printf("-serial: a device (/dev/ttyS0), HOST:PORT or listen:PORT\n"); return false; }
 
@@ -460,3 +460,5 @@ void ser_shutdown() {
     close(fd);
     fd = -1;
 }
+
+int ser_fds(int* fds) { fds[0] = fd; return fd >= 0; }
