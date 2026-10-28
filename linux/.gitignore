@@ -4,3 +4,4 @@ default.cfg
 *.dsg
 /ipxsetup
 /sersetup
+/setup

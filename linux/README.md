@@ -4,15 +4,20 @@ The same Doom as the bare-metal and DOS builds (free look, widescreen, OPL3 musi
 
 ```
 sudo apt install build-essential libsdl2-dev
-make                        # ./doom, ./ipxsetup, ./sersetup
+make                        # ./doom, ./setup, ./ipxsetup, ./sersetup
 ./doom                      # finds doom2.wad, doom.wad, doom1.wad, freedoom*.wad
 ./doom -iwad path/to/doom.wad -warp 1 1
+./setup                     # keys, mouse, video, sound: like SETUP.EXE
 ./ipxsetup                  # a net game: the setup menu
 ```
 
 It looks for the IWAD in the current directory, `$DOOMWADDIR`, `$DOOMWADPATH`, `~/.local/share/games/doom` and `/usr/share/games/doom`. `default.cfg` and saved games go in the current directory, as on DOS.
 
 **Controls** are the DOS build's: WASD, Ctrl or the left button fires, Space opens, Alt strafes, Shift runs, the mouse looks around. **Fullscreen:** the key under Esc (`` ` ``), Alt+Enter, or Options → FULLSCREEN. It's remembered in `default.cfg` (`fullscreen`; `key_fullscreen` to use another key); `-fullscreen` / `-window` for one run. Ctrl+F10 lets go of the mouse, as in DOSBox; Ctrl+F10 again or a click in the window takes it back. `-width W -height H` sets the window size, `-novsync`, `-latency MS` for the sound.
+
+## Setup
+
+`./setup` is SETUP.EXE's job, in DOS-style blue screens: **Keyboard** (Enter on an action, then press the key: any key, Ctrl, Shift and Alt included; if another action had it, the two swap; Del clears one), **Mouse** (sensitivity, free look, invert, which button fires/strafes/moves/uses), **Video** (fullscreen, widescreen, resolution, screen size, detail, messages), **Sound** (volumes, sounds at once) and **Chat macros**. Then *Save settings and run DOOM* or *Save settings and exit*. It edits `default.cfg` and `dgextra.cfg` in the current directory, the files the game reads, keys as DOS scan codes as SETUP.EXE wrote them; anything else in them is left alone. Options given to setup (`./setup -iwad doom2.wad`) go to the game it runs. Alt+Enter: fullscreen.
 
 ## Net games
 
