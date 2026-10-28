@@ -11,7 +11,7 @@ make
 
 It looks for the IWAD in the current directory, `$DOOMWADDIR`, `$DOOMWADPATH`, `~/.local/share/games/doom` and `/usr/share/games/doom`. `default.cfg` and saved games go in the current directory, as on DOS.
 
-**Controls** are the DOS build's: WASD, Ctrl or the left button fires, Space opens, Alt strafes, Shift runs, the mouse looks around. Alt+Enter toggles fullscreen (`-fullscreen` to start that way); Ctrl+Alt+G lets go of the mouse. `-width W -height H` sets the window size, `-novsync`, `-latency MS` for the sound.
+**Controls** are the DOS build's: WASD, Ctrl or the left button fires, Space opens, Alt strafes, Shift runs, the mouse looks around. Alt+Enter toggles fullscreen (`-fullscreen` to start that way). Ctrl+F10 lets go of the mouse, as in DOSBox; Ctrl+F10 again or a click in the window takes it back. `-width W -height H` sets the window size, `-novsync`, `-latency MS` for the sound.
 
 ## Net games
 

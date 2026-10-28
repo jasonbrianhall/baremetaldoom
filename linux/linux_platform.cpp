@@ -58,10 +58,20 @@ static char title[128] = "Doom";
 
 extern "C" int SCREENWIDTH, SCREENHEIGHT;   // i_video.c: the frame's size
 
+static int mouse_buttons;
+static bool mouse_news;
+
+// The game has the mouse (hidden, relative motion) or lets go of it (a
+// pointer, for the rest of the desktop): Ctrl+F10 as in DOSBox, or leaving
+// the window. A click in the window takes it back.
 static void grab_mouse(bool on) {
-    if (!win) return;
+    if (!win || on == have_mouse) return;
     have_mouse = on;
     SDL_SetRelativeMouseMode(on ? SDL_TRUE : SDL_FALSE);
+    if (!on && mouse_buttons) { mouse_buttons = 0; mouse_news = true; }   // no button left held down
+    char t[192];
+    snprintf(t, sizeof t, on ? "%s" : "%s - mouse free: click or Ctrl+F10 to play", title);
+    SDL_SetWindowTitle(win, t);
 }
 
 static void graphics_start(int w, int h) {
@@ -88,6 +98,7 @@ static void graphics_start(int w, int h) {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     SDL_RendererInfo ri;
     if (SDL_GetRendererInfo(ren, &ri) == 0) printf("Video: SDL %s renderer, %dx%d frame\n", ri.name, w, h);
+    have_mouse = false;
     grab_mouse(true);
 }
 
@@ -264,8 +275,7 @@ static void key_post(bool down, int k) {
 }
 
 // ---------------------------------------------------------------- mouse
-static int mouse_dx, mouse_dy, mouse_buttons;
-static bool mouse_news;
+static int mouse_dx, mouse_dy;
 
 // ---------------------------------------------------------------- sound
 // 48 kHz signed 16-bit mono into SDL's queue, kept `ahead` frames ahead of
@@ -367,8 +377,14 @@ extern "C" void bm_poll(void) {
             bool down = e.type == SDL_KEYDOWN;
             SDL_Scancode sc = e.key.keysym.scancode;
             if (down && sc == SDL_SCANCODE_RETURN && (e.key.keysym.mod & KMOD_ALT)) { toggle_fullscreen(); break; }
-            if (down && sc == SDL_SCANCODE_G && (e.key.keysym.mod & KMOD_CTRL) && (e.key.keysym.mod & KMOD_ALT)) {
-                grab_mouse(!have_mouse);                // Ctrl+Alt+G: let go of the mouse
+            // Ctrl+F10 (as DOSBox) or Ctrl+Alt+G: let go of the mouse, or take it
+            // back. The F10 / G never reach Doom (F10 is its quit key).
+            static SDL_Scancode eaten = SDL_SCANCODE_UNKNOWN;
+            if (!down && sc == eaten) { eaten = SDL_SCANCODE_UNKNOWN; break; }
+            if (down && (e.key.keysym.mod & KMOD_CTRL)
+                && (sc == SDL_SCANCODE_F10 || (sc == SDL_SCANCODE_G && (e.key.keysym.mod & KMOD_ALT)))) {
+                if (!e.key.repeat) grab_mouse(!have_mouse);
+                eaten = sc;
                 break;
             }
             if (e.key.repeat) break;                    // Doom repeats nothing itself
@@ -503,6 +519,11 @@ int main(int argc, char** argv) {
     signal(SIGPIPE, SIG_IGN);
     if (!net_setup(argc, argv)) return 1;
 
+    // The mouse in the game's units (as DOS's mickeys and bare metal's PS/2
+    // counts), not shrunk by the window's scale: SDL by default divides
+    // relative motion by how much the 320x240 picture is blown up, so a 3x
+    // window turned at a third of the speed.
+    SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_SCALING, "0");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
         fprintf(stderr, "SDL: %s\n", SDL_GetError());
         return 1;
