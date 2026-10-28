@@ -378,7 +378,8 @@ menu_t  OptionsDef =
     OptionsMenu,
     M_DrawOptions,
 #ifdef BM_HOSTED
-    60,33,              // a line more (fullscreen): up a little, off the status bar
+    60,30,              // a line more (fullscreen): up, right under the title,
+                        // so the last line ends above the status bar (168)
 #else
     60,37,
 #endif
@@ -1054,7 +1055,7 @@ void M_DrawOptions(void)
 		 9,screenSize);
 
 #ifdef BM_HOSTED
-    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT * opt_fullscreen + 3,
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT * opt_fullscreen + 2,
                 bm_fullscreen() ? "FULLSCREEN: ON" : "FULLSCREEN: OFF");
 #endif
 }

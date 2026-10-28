@@ -1,6 +1,6 @@
 # Doom for Linux (SDL2), with IPX and serial net games built in.
 #
-#   make            ./doom, ./ipxsetup, ./sersetup
+#   make            ./doom, ./ipxsetup, ./sersetup, ./setup
 #   make run        run it (WAD=path/to/doom.wad, ARGS="-warp 1 1")
 #   make install    to $(PREFIX)/games (PREFIX=/usr/local)
 #   make clean
@@ -59,7 +59,7 @@ HDRS := $(wildcard $(DOOM)/*.h) $(wildcard $(BM)/*.h) $(wildcard $(BM)/*.hpp) $(
 
 NET_OBJS := $(patsubst %.cpp,$(BUILD)/cxx/%.o,$(NET_SRCS))
 
-all: $(TARGET) ipxsetup sersetup
+all: $(TARGET) ipxsetup sersetup setup
 
 $(TARGET): $(OBJS)
 	$(CXX) $(LDFLAGS) $(OBJS) $(LDLIBS) -o $@
@@ -67,6 +67,10 @@ $(TARGET): $(OBJS)
 # The DOS way: find the players, then start ./doom as their driver.
 ipxsetup: setup_main.cpp setup_ui.cpp setup_ui.h $(NET_OBJS) net_linux.h Makefile
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) setup_main.cpp setup_ui.cpp $(NET_OBJS) -o $@
+# SETUP.EXE: keys, mouse, video, sound (default.cfg, dgextra.cfg).
+setup: setup.cpp keymap.h $(BM)/font.h Makefile
+	$(CXX) $(CXXFLAGS) -I$(BM) $(LDFLAGS) setup.cpp $(SDL_LIBS) -o $@
+
 sersetup: setup_main.cpp $(NET_OBJS) net_linux.h Makefile
 	$(CXX) $(CXXFLAGS) -DSETUP_SERIAL $(LDFLAGS) setup_main.cpp $(NET_OBJS) -o $@
 
@@ -88,8 +92,9 @@ install: all
 	install -D -m 755 $(TARGET) $(DESTDIR)$(PREFIX)/games/baremetaldoom
 	install -D -m 755 ipxsetup $(DESTDIR)$(PREFIX)/games/baremetaldoom-ipxsetup
 	install -D -m 755 sersetup $(DESTDIR)$(PREFIX)/games/baremetaldoom-sersetup
+	install -D -m 755 setup $(DESTDIR)$(PREFIX)/games/baremetaldoom-setup
 
 clean:
-	rm -rf $(BUILD) $(TARGET) ipxsetup sersetup
+	rm -rf $(BUILD) $(TARGET) ipxsetup sersetup setup
 
 .PHONY: all run install clean

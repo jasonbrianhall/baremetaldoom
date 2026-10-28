@@ -219,6 +219,8 @@ void D_Display (void)
 			redrawsbar = true;
 		if (inhelpscreensstate && !inhelpscreens)
 			redrawsbar = true;              // just put away the help screen
+		if (menuactivestate && !menuactive)
+			redrawsbar = true;              // just put away a menu: nothing of it left on the bar
 		ST_Drawer (viewheight == 200, redrawsbar );
 		fullscreen = viewheight == 200;
 		break;

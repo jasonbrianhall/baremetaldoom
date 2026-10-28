@@ -76,13 +76,17 @@ typedef enum
 // Extended player object info: player_t
 //
 // Free look (mouse_freelook): the view pitch, in 1/8ths of a pixel of
-// y-shear at 320 wide, up positive. The renderer shears the view, so the
-// range is limited to what still looks right (about 32 degrees each way).
+// y-shear at 320 wide, up positive. The renderer shears the view (it can't
+// tilt it: walls stay upright on the screen), so the range is limited to
+// what still looks right: 280 pixels against a projection of 160 is 60
+// degrees each way. Past that the floors and walls smear into streaks.
+// It's game state (the clamp in P_PlayerThink, the shots' slope), so
+// every machine in a net game needs the same.
 // With free look on, the player's shots go where the crosshair is: no
 // autoaim. LOOK_SLOPE is the matching vertical slope (fixed_t).
 // Whether a player is free-looking is in their ticcmd (lookflags), so in
 // a net game every machine agrees, tic by tic: P_LookActive.
-#define LOOKDIR_MAX	(100*8)
+#define LOOKDIR_MAX	(280*8)
 #define LOOK_SLOPE(p)	((fixed_t)(((p)->lookdir * FRACUNIT) / (160*8)))
 #define LOOK_ACTIVE	1
 #define P_LookActive(p)	(((p)->cmd.lookflags & LOOK_ACTIVE) != 0)
