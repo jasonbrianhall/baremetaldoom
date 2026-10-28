@@ -34,12 +34,19 @@ static volatile int playing, looping, paused;
 static volatile int gain = 100;     // Doom's music volume, 0..127
 static bool ready;
 
+#ifdef BM_HOSTED
+// A hosted build (Linux): no interrupt; the mix is made on the main thread,
+// so there is nothing to keep out (and cli would fault in user mode).
+static inline uintptr_t irq_off() { return 0; }
+static inline void irq_restore(uintptr_t) {}
+#else
 static inline uintptr_t irq_off() {
     uintptr_t f;
     __asm__ volatile("pushf; pop %0; cli" : "=r"(f) :: "memory");
     return f;
 }
 static inline void irq_restore(uintptr_t f) { __asm__ volatile("push %0; popf" :: "r"(f) : "memory", "cc"); }
+#endif
 
 extern "C" void music_init(void) {
     opl_init(OUT_RATE / DIV);

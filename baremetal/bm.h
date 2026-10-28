@@ -17,6 +17,11 @@ int bm_key(int* pressed, unsigned char* key);   /* doomkeys.h codes; 0: none */
 int bm_mouse(int* buttons, int* dx, int* dy);   /* dy: down; 0: no change */
 uint32_t bm_ms(void);
 void bm_sleep_ms(uint32_t ms);
+#ifdef BM_HOSTED
+/* In a window (Linux): fullscreen or not, for the Options menu. */
+int bm_fullscreen(void);
+void bm_set_fullscreen(int on);
+#endif
 #ifdef __cplusplus
 }
 #endif

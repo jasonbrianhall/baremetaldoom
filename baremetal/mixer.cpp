@@ -15,12 +15,19 @@ static Channel ch_[MIXER_CHANNELS];
 static volatile bool enabled;
 
 // The main loop changes channels; the interrupt reads them.
+#ifdef BM_HOSTED
+// A hosted build (Linux): no interrupt; the mix is made on the main thread,
+// so there is nothing to keep out (and cli would fault in user mode).
+static inline uintptr_t irq_off() { return 0; }
+static inline void irq_restore(uintptr_t) {}
+#else
 static inline uintptr_t irq_off() {
     uintptr_t f;
     __asm__ volatile("pushf; pop %0; cli" : "=r"(f) :: "memory");
     return f;
 }
 static inline void irq_restore(uintptr_t f) { __asm__ volatile("push %0; popf" :: "r"(f) : "memory", "cc"); }
+#endif
 
 extern "C" {
 void mixer_init(int on) { enabled = on != 0; }
